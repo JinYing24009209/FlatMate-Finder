@@ -36,6 +36,15 @@ test('summary highlights core facts', () => {
     /Rent: \$230\/week/
   );
 });
+test('safety screening explains suspicious payment language', () => {
+  const result = ai.safetyCheck({
+    description: 'Pay before viewing by crypto and send deposit urgently.',
+    address: '',
+  });
+  assert.equal(result.safe, false);
+  assert.ok(result.risk_score > 0);
+  assert.ok(result.flags.length >= 2);
+});
 test('cosine similarity supports semantic ranking', () => {
   assert.equal(ai.cosineSimilarity([1, 0], [1, 0]), 1);
   assert.equal(ai.cosineSimilarity([1, 0], [0, 1]), 0);
