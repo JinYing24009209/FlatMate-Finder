@@ -33,6 +33,34 @@ test('listing recommendation rewards budget and location fit', () => {
   assert.equal(result.score, 90);
   assert.equal(result.reasons.length, 3);
 });
+test('flatmate matching varies by shared profile fields', () => {
+  const mine = {
+    budget_min: 150,
+    budget_max: 250,
+    preferred_location: 'Albany',
+    study_habits: 'Morning',
+    lifestyle_tags: ['quiet', 'tidy'],
+  };
+  const close = ai.flatmateMatchScore(mine, {
+    budget_min: 180,
+    budget_max: 260,
+    preferred_location: 'Albany',
+    study_habits: 'Morning',
+    lifestyle_tags: ['quiet'],
+  });
+  const different = ai.flatmateMatchScore(mine, {
+    budget_min: 500,
+    budget_max: 600,
+    preferred_location: 'CBD',
+    study_habits: 'Night',
+    lifestyle_tags: ['social'],
+  });
+  assert.ok(close.score > different.score);
+  assert.ok(close.breakdown.length > 1);
+});
+test('flatmate matching does not invent a percentage for an empty profile', () => {
+  assert.equal(ai.flatmateMatchScore({}, { preferred_location: 'Albany' }).score, null);
+});
 test('summary highlights core facts', () => {
   assert.match(
     ai.summariseListing({

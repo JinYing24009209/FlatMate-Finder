@@ -81,6 +81,76 @@ function listingMatchScore(listing, profile, context = {}) {
     reasons: reasons.length ? reasons : ['general listing match'],
   };
 }
+function flatmateMatchScore(mine, candidate) {
+  const mineTags = (mine?.lifestyle_tags || []).map((tag) => String(tag).toLowerCase());
+  const candidateTags = (candidate?.lifestyle_tags || []).map((tag) => String(tag).toLowerCase());
+  const profileComplete = Boolean(
+    mine?.preferred_location ||
+      mine?.study_habits ||
+      mineTags.length ||
+      mine?.budget_min ||
+      mine?.budget_max
+  );
+  if (!profileComplete)
+    return {
+      score: null,
+      breakdown: [
+        'Add your location, budget, routine or lifestyle preferences to calculate a score.',
+      ],
+    };
+  let earned = 0;
+  let available = 0;
+  const breakdown = [];
+  if (mine.preferred_location && candidate.preferred_location) {
+    available += 30;
+    const mineLocation = mine.preferred_location.toLowerCase();
+    const candidateLocation = candidate.preferred_location.toLowerCase();
+    if (mineLocation === candidateLocation) {
+      earned += 30;
+      breakdown.push('same preferred location');
+    } else if (mineLocation.includes(candidateLocation) || candidateLocation.includes(mineLocation)) {
+      earned += 18;
+      breakdown.push('nearby location preference');
+    } else breakdown.push('different location preference');
+  }
+  const mineMin = Number(mine.budget_min || 0);
+  const mineMax = Number(mine.budget_max || Number.MAX_SAFE_INTEGER);
+  const candidateMin = Number(candidate.budget_min || 0);
+  const candidateMax = Number(candidate.budget_max || Number.MAX_SAFE_INTEGER);
+  if ((mine.budget_min || mine.budget_max) && (candidate.budget_min || candidate.budget_max)) {
+    available += 25;
+    const overlap = Math.max(
+      0,
+      Math.min(mineMax, candidateMax) - Math.max(mineMin, candidateMin)
+    );
+    const combined = Math.max(mineMax, candidateMax) - Math.min(mineMin, candidateMin) || 1;
+    const budgetPoints = Math.round(25 * Math.min(1, overlap / combined + (overlap > 0 ? 0.4 : 0)));
+    earned += budgetPoints;
+    breakdown.push(overlap > 0 ? 'compatible weekly budgets' : 'budgets do not overlap');
+  }
+  if (mine.study_habits && candidate.study_habits) {
+    available += 20;
+    if (mine.study_habits.toLowerCase() === candidate.study_habits.toLowerCase()) {
+      earned += 20;
+      breakdown.push('same study routine');
+    } else breakdown.push('different study routines');
+  }
+  if (mineTags.length && candidateTags.length) {
+    available += 25;
+    const sharedTags = candidateTags.filter((tag) => mineTags.includes(tag));
+    const uniqueTags = new Set([...mineTags, ...candidateTags]);
+    earned += Math.round(25 * (sharedTags.length / uniqueTags.size));
+    breakdown.push(
+      sharedTags.length
+        ? `shared lifestyle: ${sharedTags.join(', ')}`
+        : 'no shared lifestyle tags yet'
+    );
+  }
+  return {
+    score: available ? Math.max(5, Math.min(100, Math.round((earned / available) * 100))) : null,
+    breakdown,
+  };
+}
 function summariseListing({ description = '', rent, city, available_from }) {
   const sentence = description.split(/(?<=[.!?])\s+/)[0].slice(0, 220);
   return [
@@ -334,3 +404,17 @@ async function storeListingEmbedding(pool, listing) {
     );
   return vector;
 }
+module.exports = {
+  parseNaturalLanguageSearch,
+  listingMatchScore,
+  flatmateMatchScore,
+  summariseListing,
+  safetyCheck,
+  enhancedSafetyCheck,
+  generateListingSummary,
+  getAiProviderStatus,
+  keywordSimilarity,
+  createEmbedding,
+  cosineSimilarity,
+  storeListingEmbedding,
+};
