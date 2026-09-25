@@ -32,6 +32,55 @@ function parseNaturalLanguageSearch(input = '') {
     ),
   };
 }
+function listingMatchScore(listing, profile, context = {}) {
+  if (!profile) return { score: 50, reasons: ['Complete your profile for a personalised score.'] };
+  let score = 25;
+  const reasons = [];
+  if (profile.budget_max && Number(listing.rent) <= Number(profile.budget_max)) {
+    score += 30;
+    reasons.push('within your budget');
+  }
+  if (
+    profile.preferred_location &&
+    `${listing.city} ${listing.suburb || ''}`
+      .toLowerCase()
+      .includes(profile.preferred_location.toLowerCase())
+  ) {
+    score += 25;
+    reasons.push('matches your location');
+  }
+  const tags = (profile.lifestyle_tags || []).map((x) => x.toLowerCase());
+  const text = `${listing.description || ''} ${listing.house_rules || ''}`.toLowerCase();
+  const overlaps = tags.filter((tag) => text.includes(tag));
+  if (overlaps.length) {
+    score += Math.min(20, overlaps.length * 10);
+    reasons.push(`mentions ${overlaps.join(', ')}`);
+  }
+  const savedListings = context.savedListings || [];
+  if (savedListings.length) {
+    const savedLocations = savedListings.map((saved) => saved.suburb || saved.city).filter(Boolean);
+    const savedTypes = savedListings.map((saved) => saved.room_type).filter(Boolean);
+    const averageRent =
+      savedListings.reduce((sum, saved) => sum + Number(saved.rent || 0), 0) /
+      savedListings.length;
+    if (savedLocations.includes(listing.suburb || listing.city)) {
+      score += 8;
+      reasons.push('similar to a location you saved');
+    }
+    if (savedTypes.includes(listing.room_type)) {
+      score += 5;
+      reasons.push('matches a room type you saved');
+    }
+    if (averageRent && Math.abs(Number(listing.rent) - averageRent) <= 40) {
+      score += 7;
+      reasons.push('close to the rent of rooms you saved');
+    }
+  }
+  return {
+    score: Math.min(100, score),
+    reasons: reasons.length ? reasons : ['general listing match'],
+  };
+}
 function summariseListing({ description = '', rent, city, available_from }) {
   const sentence = description.split(/(?<=[.!?])\s+/)[0].slice(0, 220);
   return [
@@ -253,4 +302,35 @@ function cosineSimilarity(a, b) {
     bb += b[i] ** 2;
   }
   return dot / (Math.sqrt(aa) * Math.sqrt(bb) || 1);
+}
+async function storeListingEmbedding(pool, listing) {
+  const vector = await createEmbedding(
+    [
+      listing.title,
+      listing.description || '',
+      listing.city,
+      listing.room_type,
+      listing.house_rules || '',
+    ].join('. '),
+    'RETRIEVAL_DOCUMENT'
+  );
+  if (vector)
+    await pool.query(
+      `
+        INSERT INTO listing_embedding (listing_id, embedding, model)
+        VALUES ($1, $2::jsonb, $3)
+        ON CONFLICT(listing_id) DO UPDATE SET
+          embedding = EXCLUDED.embedding,
+          model = EXCLUDED.model,
+          updated_at = now()
+      `,
+      [
+        listing.listing_id,
+        JSON.stringify(vector),
+        process.env.AI_MODE === 'gemini'
+          ? process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001'
+          : process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
+      ]
+    );
+  return vector;
 }
