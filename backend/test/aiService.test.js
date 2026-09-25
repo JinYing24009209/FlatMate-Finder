@@ -25,6 +25,17 @@ test('smart search understands a rent range and lifestyle terms', () => {
   assert.equal(result.maxRent, 280);
   assert.deepEqual(result.lifestyle, ['non-smoker', 'tidy']);
 });
+test('summary highlights core facts', () => {
+  assert.match(
+    ai.summariseListing({
+      description: 'Sunny room. More copy.',
+      rent: 230,
+      city: 'Auckland',
+      available_from: '2026-09-01',
+    }),
+    /Rent: \$230\/week/
+  );
+});
 test('cosine similarity supports semantic ranking', () => {
   assert.equal(ai.cosineSimilarity([1, 0], [1, 0]), 1);
   assert.equal(ai.cosineSimilarity([1, 0], [0, 1]), 0);
@@ -39,6 +50,39 @@ test('local relevance ranking remains available without an external provider', (
     transport_options: ['Bus stop'],
   });
   assert.equal(score, 100);
+});
+test('Gemini listing summary uses structured output without exposing contact data', async () => {
+  const originalFetch = global.fetch;
+  const originalMode = process.env.AI_MODE;
+  const originalKey = process.env.GEMINI_API_KEY;
+  process.env.AI_MODE = 'gemini';
+  process.env.GEMINI_API_KEY = 'test-key';
+  let requestBody;
+  global.fetch = async (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: '{"summary":"A concise room summary."}' }] } }],
+      }),
+    };
+  };
+  try {
+    const result = await ai.generateListingSummary({
+      title: 'Sunny room',
+      description: 'Bright room near campus.',
+      rent: 230,
+      city: 'Auckland',
+      email: 'private@example.test',
+    });
+    assert.equal(result.mode, 'gemini');
+    assert.equal(result.summary, 'A concise room summary.');
+    assert.doesNotMatch(JSON.stringify(requestBody), /private@example\.test/);
+  } finally {
+    global.fetch = originalFetch;
+    process.env.AI_MODE = originalMode;
+    process.env.GEMINI_API_KEY = originalKey;
+  }
 });
 test('embedding errors fall back cleanly instead of breaking smart search', async () => {
   const originalFetch = global.fetch;

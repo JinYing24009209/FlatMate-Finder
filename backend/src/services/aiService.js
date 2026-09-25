@@ -32,6 +32,17 @@ function parseNaturalLanguageSearch(input = '') {
     ),
   };
 }
+function summariseListing({ description = '', rent, city, available_from }) {
+  const sentence = description.split(/(?<=[.!?])\s+/)[0].slice(0, 220);
+  return [
+    sentence,
+    rent && `Rent: $${rent}/week`,
+    city && `Location: ${city}`,
+    available_from && `Available: ${available_from}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 function getAiProviderStatus() {
   const mode = process.env.AI_MODE || 'local';
   const configured =
@@ -82,6 +93,33 @@ async function generateGeminiJson(prompt) {
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('');
   return text ? JSON.parse(text) : null;
+}
+
+async function generateListingSummary(listing) {
+  const localSummary = summariseListing(listing);
+  try {
+    const result = await generateGeminiJson(
+      [
+        'Summarise this student accommodation listing in one factual sentence under 55 words.',
+        'Do not invent facts. Return JSON with exactly one string field named summary.',
+        JSON.stringify({
+          title: listing.title,
+          description: listing.description,
+          rent_per_week: listing.rent,
+          suburb: listing.suburb,
+          city: listing.city,
+          available_from: listing.available_from,
+          room_type: listing.room_type,
+          utilities: listing.utilities,
+          transport_options: listing.transport_options,
+        }),
+      ].join('\n')
+    );
+    if (result?.summary) return { summary: result.summary, mode: 'gemini' };
+  } catch (error) {
+    console.warn(`AI summary fallback: ${error.message}`);
+  }
+  return { summary: localSummary, mode: 'local-fallback' };
 }
 
 function keywordSimilarity(query, listing) {

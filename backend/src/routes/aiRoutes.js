@@ -121,3 +121,13 @@ router.get('/ai/status', (_req, res) => {
   });
 });
 
+router.post(
+  '/ai/summary',
+  asyncRoute(async (req, res) => {
+    const result = await ai.generateListingSummary(req.body);
+    res.json({
+      ...result,
+      disclaimer: 'Generated from advertiser-provided content; verify important details.',
+    });
+  })
+);
