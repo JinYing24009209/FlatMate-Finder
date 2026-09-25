@@ -173,3 +173,4 @@ router.post(
   allow('student', 'admin'),
   asyncRoute(async (req, res) => res.json(await ai.enhancedSafetyCheck(req.body)))
 );
+module.exports = router;
