@@ -15,6 +15,42 @@ const select = `
 `;
 
 router.get(
+  '/ai/recommendations',
+  auth,
+  allow('student'),
+  asyncRoute(async (req, res) => {
+    const {
+      rows: [profile],
+    } = await pool.query('SELECT * FROM profiles WHERE user_id=$1', [req.user.userId]);
+    const { rows: savedListings } = await pool.query(
+      `
+        SELECT l.rent, l.city, l.suburb, l.room_type
+        FROM saved_listing s
+        JOIN listing l ON l.listing_id = s.listing_id
+        WHERE s.student_id = $1
+        ORDER BY s.saved_at DESC
+        LIMIT 12
+      `,
+      [req.user.userId]
+    );
+    const { rows } = await pool.query(
+      `${select} WHERE l.status='available' GROUP BY l.listing_id,u.full_name`
+    );
+    const recommendations = rows
+      .map((listing) => ({
+        ...listing,
+        ai_match: ai.listingMatchScore(listing, profile, { savedListings }),
+      }))
+      .sort((a, b) => b.ai_match.score - a.ai_match.score);
+    res.json({
+      recommendations,
+      ai_notice:
+        'Explainable ranking uses your budget, location, lifestyle and recent saved listings.',
+    });
+  })
+);
+
+router.get(
   '/ai/smart-search',
   asyncRoute(async (req, res) => {
     const interpretation = ai.parseNaturalLanguageSearch(req.query.q);

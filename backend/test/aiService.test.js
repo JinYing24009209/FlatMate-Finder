@@ -25,6 +25,14 @@ test('smart search understands a rent range and lifestyle terms', () => {
   assert.equal(result.maxRent, 280);
   assert.deepEqual(result.lifestyle, ['non-smoker', 'tidy']);
 });
+test('listing recommendation rewards budget and location fit', () => {
+  const result = ai.listingMatchScore(
+    { rent: 220, city: 'Auckland', suburb: 'Albany', description: 'quiet home' },
+    { budget_max: 250, preferred_location: 'Albany', lifestyle_tags: ['quiet'] }
+  );
+  assert.equal(result.score, 90);
+  assert.equal(result.reasons.length, 3);
+});
 test('summary highlights core facts', () => {
   assert.match(
     ai.summariseListing({
