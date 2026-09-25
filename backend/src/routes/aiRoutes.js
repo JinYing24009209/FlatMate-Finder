@@ -131,3 +131,9 @@ router.post(
     });
   })
 );
+router.post(
+  '/ai/safety-check',
+  auth,
+  allow('student', 'admin'),
+  asyncRoute(async (req, res) => res.json(await ai.enhancedSafetyCheck(req.body)))
+);
