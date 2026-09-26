@@ -7,6 +7,7 @@ export default function AuthPage({ setUser, onBack }) {
     email: '',
     password: '',
     role: 'student',
+    student_type: 'housing',
     admin_invite_code: '',
   });
   const [error, setError] = useState('');
@@ -57,11 +58,31 @@ export default function AuthPage({ setUser, onBack }) {
               <label>
                 Account role
                 <select name="role" value={form.role} onChange={change}>
-                  <option value="student">Student / flatmate</option>
+                  <option value="student">Student</option>
                   <option value="advertiser">Advertiser / property representative</option>
                   <option value="admin">Administrator (invite only)</option>
                 </select>
               </label>
+
+              {form.role === 'student' && (
+                <label>
+                  What are you looking for?
+                  <select
+                    name="student_type"
+                    value={form.student_type}
+                    onChange={change}
+                    required
+                  >
+                    <option value="housing">
+                      Find housing
+                    </option>
+                    <option value="flatmate">
+                      Find a flatmate
+                    </option>
+                  </select>
+                </label>
+              )}
+
               {form.role === 'admin' && (
                 <label>
                   Internal admin invitation code

@@ -233,6 +233,7 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
       LEFT JOIN saved_flatmate sf
         ON sf.student_id = $1 AND sf.saved_user_id = u.user_id
       WHERE u.role = 'student'
+        AND u.student_type = 'flatmate'
         AND u.is_active = true
         AND u.user_id <> $1
         AND p.visible_for_matching = true
@@ -308,6 +309,7 @@ router.post(
         JOIN profiles p ON p.user_id = u.user_id
         WHERE u.user_id = $1
           AND u.role = 'student'
+          AND u.student_type = 'flatmate'
           AND u.is_active = true
           AND p.visible_for_matching = true
       `,
