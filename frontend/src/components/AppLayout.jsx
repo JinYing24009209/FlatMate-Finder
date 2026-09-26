@@ -174,8 +174,8 @@ export default function AppLayout({
               <small>
                 {user.role === 'student'
                   ? user.student_type === 'flatmate'
-                    ? 'Student · Find a flatmate'
-                    : 'Student · Find housing'
+                    ? 'Student - Find a flatmate'
+                    : 'Student - Find housing'
                   : `${user.role} account`}
               </small>
             </div>
