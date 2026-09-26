@@ -1,5 +1,5 @@
--- FlatMate Finder v6 - reproducible PostgreSQL / Neon schema
--- Safe for a fresh empty database. Existing databases should use upgrade_v6.sql.
+-- FlatMate Finder - reproducible PostgreSQL / Neon schema
+-- Safe for a fresh empty database. Existing databases should use upgrade.sql.
 
 DO $$
 BEGIN
