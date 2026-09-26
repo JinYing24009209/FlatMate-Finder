@@ -14,6 +14,12 @@ import ListingFormPage from './pages/ListingFormPage';
 import MyListingsPage from './pages/MyListingsPage';
 import AdminPage from './pages/AdminPage';
 import './styles/app.css';
+import {
+  getDefaultPage,
+  resolveAccountPage,
+} from './utils/accountNavigation';
+
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('home');
@@ -48,7 +54,11 @@ const goBack = () => {
 
   setNavigationHistory((history) => history.slice(0, -1));
   setView(previous.view);
-  setPageState(previous.page);
+  setPageState(
+    user
+      ? resolveAccountPage(user, previous.page)
+      : previous.page
+  );
   setSelected(previous.selected);
   setEditing(previous.editing);
   setFocusEnquiry(previous.focusEnquiry);
@@ -61,12 +71,17 @@ const canGoBack = navigationHistory.length > 0;
 
   useEffect(() => {
     api('/auth/me')
-      .then((data) => setUser(data.user))
+      .then((data) => {
+        setUser(data.user);
+        setPageState(getDefaultPage(data.user));
+        setView('app');
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   const setPage = (next, options = {}) => {
+    next = resolveAccountPage(user, next);
   const nextFocus =
     next === 'Enquiries'
       ? options.enquiryId || focusEnquiry
@@ -94,7 +109,11 @@ const canGoBack = navigationHistory.length > 0;
         user={user}
         onBack={goBack}
         canGoBack={canGoBack}
-        onStart={() => navigateView(user ? 'app' : 'auth')}
+        onStart={() =>
+          user
+            ? setPage(getDefaultPage(user))
+            : navigateView('auth')
+        }
         onBrowse={() =>
           user ? setPage('Browse listings') : navigateView('auth')
         }
@@ -138,7 +157,7 @@ const canGoBack = navigationHistory.length > 0;
         setUser(value);
 
         setNavigationHistory([]);
-        setPageState('Dashboard');
+        setPageState(getDefaultPage(value));
         setSelected(null);
         setEditing(null);
         setFocusEnquiry(null);
@@ -170,17 +189,18 @@ const canGoBack = navigationHistory.length > 0;
     'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} />,
     'Admin dashboard': <AdminPage />,
   };
+  const activePage = resolveAccountPage(user, page);
   return (
     <AppLayout
       user={user}
-      page={page}
+      page={activePage}
       setPage={setPage}
       onHome={() => navigateView('home')}
       onLogout={logout}
       onBack={goBack}
       canGoBack={canGoBack}
     >
-      {pages[page] || pages.Dashboard}
+      {pages[activePage] || pages.Dashboard}
     </AppLayout>
   );
 }
