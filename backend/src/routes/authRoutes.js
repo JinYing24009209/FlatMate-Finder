@@ -9,6 +9,7 @@ const publicUser = (u) => ({
   full_name: u.full_name,
   email: u.email,
   role: u.role,
+  student_type: u.student_type,
   phone: u.phone,
   is_active: u.is_active,
 });
@@ -30,7 +31,29 @@ const issueSession = (res, user) =>
 router.post(
   '/register',
   asyncRoute(async (req, res) => {
-    const { full_name, email, password, role = 'student', phone, admin_invite_code } = req.body;
+    const {
+      full_name,
+      email,
+      password,
+      role = 'student',
+      phone,
+      admin_invite_code,
+      student_type,
+    } = req.body;
+
+    const studentType =
+      role === 'student' ? student_type : null;
+
+    if (
+      role === 'student' &&
+      !['housing', 'flatmate'].includes(studentType)
+    ) {
+      return fail(
+        res,
+        400,
+        'Please choose whether you are looking for housing or a flatmate.'
+      );
+    }
     if (!full_name || !email || !password || !['student', 'advertiser', 'admin'].includes(role))
       return fail(res, 400, 'Name, email, password and a valid role are required.');
     if (password.length < 8) return fail(res, 400, 'Password must be at least 8 characters.');
@@ -57,8 +80,18 @@ router.post(
     const {
       rows: [user],
     } = await pool.query(
-      'INSERT INTO users (full_name,email,password_hash,role,phone) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [full_name.trim(), email.trim().toLowerCase(), password_hash, role, phone || null]
+      `INSERT INTO users
+        (full_name, email, password_hash, role, phone, student_type)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [
+        full_name.trim(),
+        email.trim().toLowerCase(),
+        password_hash,
+        role,
+        phone || null,
+        studentType,
+      ]
     );
     issueSession(res, user);
     res.status(201).json({ message: 'Account created.', user: publicUser(user) });
