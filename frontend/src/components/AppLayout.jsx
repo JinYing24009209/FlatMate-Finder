@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { getAccountPages } from '../utils/accountNavigation';
 
 const iconPaths = {
   Dashboard: <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
@@ -68,17 +69,17 @@ function NavIcon({ name }) {
   );
 }
 
-const student = [
-  'Dashboard',
-  'Browse listings',
-  'Saved listings',
-  'Flatmate matches',
-  'Saved flatmates',
-  'Enquiries',
-  'My profile',
-];
-const advertiser = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
-const admin = ['Dashboard', 'Admin dashboard'];
+// const student = [
+//   'Dashboard',
+//   'Browse listings',
+//   'Saved listings',
+//   'Flatmate matches',
+//   'Saved flatmates',
+//   'Enquiries',
+//   'My profile',
+// ];
+// const advertiser = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
+// const admin = ['Dashboard', 'Admin dashboard'];
 export default function AppLayout({
   user,
   page,
@@ -93,7 +94,7 @@ export default function AppLayout({
     () => window.matchMedia('(max-width: 1360px)').matches
   );
   const [unread, setUnread] = useState(0);
-  const links = user.role === 'student' ? student : user.role === 'advertiser' ? advertiser : admin;
+  const links = getAccountPages(user);
   const refresh = () =>
     api('/unread-count')
       .then((data) => setUnread(data.unread || 0))
@@ -170,7 +171,13 @@ export default function AppLayout({
             <span>{user.full_name.slice(0, 1)}</span>
             <div>
               <strong>{user.full_name}</strong>
-              <small>{user.role} account</small>
+              <small>
+                {user.role === 'student'
+                  ? user.student_type === 'flatmate'
+                    ? 'Student · Find a flatmate'
+                    : 'Student · Find housing'
+                  : `${user.role} account`}
+              </small>
             </div>
           </div>
         )}
