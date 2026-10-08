@@ -27,17 +27,15 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
       api('/saved')
         .then((data) => {
           if (active)
-            setSaved(
-              data.listings.some(
-                (item) => String(item.listing_id) === String(listingId)
-              )
-            );
+            setSaved(data.listings.some((item) => String(item.listing_id) === String(listingId)));
         })
         .catch((error) => {
           if (active) setSaveError(`Unable to load saved status: ${error.message}`);
         });
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [listingId, user?.user_id, user?.role, saveRetry]);
 
   const toggleSave = async () => {
@@ -47,10 +45,10 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
     setSaveError('');
 
     try {
-      await api(`/listings/${listingId}/save`, { 
-        method: saved ? 'DELETE' : 'POST' 
+      await api(`/listings/${listingId}/save`, {
+        method: saved ? 'DELETE' : 'POST',
       });
-      
+
       setSaved(!saved);
     } catch (error) {
       setSaveError(`Unable to update saved listing: ${error.message}`);
@@ -182,9 +180,7 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
           </button>
           {summary && (
             <div className="ai-summary">
-              <span>
-                AI SUMMARY · {summaryMode === 'gemini' ? 'GEMINI' : 'LOCAL FALLBACK'}
-              </span>
+              <span>AI SUMMARY · {summaryMode === 'gemini' ? 'GEMINI' : 'LOCAL FALLBACK'}</span>
               <p>{summary}</p>
               <small>
                 Generated from the listing content—verify important details with the advertiser.
