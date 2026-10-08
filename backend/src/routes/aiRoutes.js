@@ -119,10 +119,7 @@ router.get(
           ...listing,
           semantic_score:
             queryEmbedding && storedVector
-              ? Math.max(
-                  0,
-                  Math.round(ai.cosineSimilarity(queryEmbedding, storedVector) * 100)
-                )
+              ? Math.max(0, Math.round(ai.cosineSimilarity(queryEmbedding, storedVector) * 100))
               : ai.keywordSimilarity(req.query.q, listing),
           semantic_source: queryEmbedding && storedVector ? provider.mode : 'local',
         };

@@ -43,24 +43,24 @@ const listingValues = (d, owner) => [
   d.available_from,
   d.status || 'available',
 ];
+const { listingFilters } = require('../services/listingFilters');
 const validRoomTypes = ['Single room', 'Double room', 'Shared room', 'Studio'];
 
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const {
-      q = '',
-      city = '',
-      minRent = 0,
-      maxRent = 999999,
-      roomType = '',
-      availableFrom = '',
-    } = req.query;
+    const { q = '', city = '', roomType = '', availableFrom = '' } = req.query;
+    let rentFilters;
+    try {
+      rentFilters = listingFilters(req.query);
+    } catch (error) {
+      return fail(res, 400, error.message);
+    }
     const sql = `${select}
       WHERE l.status = 'available'
         AND (l.title ILIKE $1 OR l.description ILIKE $1 OR l.suburb ILIKE $1)
         AND ($2 = '' OR l.city ILIKE $2 OR l.suburb ILIKE $2)
-        AND l.rent BETWEEN $3 AND $4
+        AND l.rent >= $3 AND ($4::numeric IS NULL OR l.rent <= $4)
         AND ($5 = '' OR l.room_type = $5)
         AND ($6::date IS NULL OR l.available_from <= $6::date)
       ${grouped}
@@ -68,8 +68,8 @@ router.get(
     const { rows } = await pool.query(sql, [
       `%${q}%`,
       city,
-      Number(minRent),
-      Number(maxRent),
+      rentFilters.minRent,
+      rentFilters.maxRent,
       roomType,
       availableFrom || null,
     ]);
