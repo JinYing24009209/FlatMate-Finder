@@ -1,3 +1,431 @@
+/* Student dashboard, people cards and private enquiries. */
+.dashboard-welcome {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  align-items: center;
+  gap: 30px;
+  padding: 38px 42px;
+  border-radius: 24px;
+  background: linear-gradient(115deg, #e0f3ee, #eef5f5);
+  border: 1px solid #cee5df;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.dashboard-eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #28786e;
+}
+.dashboard-welcome h1 {
+  font-size: clamp(28px, 3vw, 44px);
+  line-height: 1.15;
+  margin: 15px 0;
+  color: #143951;
+}
+.dashboard-welcome p {
+  max-width: 530px;
+  color: #466675;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}
+.dashboard-art {
+  display: grid;
+  place-items: center;
+  min-height: 210px;
+  background: radial-gradient(ellipse, #d3ebe4 0%, transparent 68%);
+  transform: rotate(-4deg);
+}
+.home-outline {
+  font-size: 150px;
+  line-height: 1;
+  color: #1b6b64;
+  text-shadow: 12px 10px 0 #b3d8cd;
+}
+.art-note {
+  background: #fffdf7;
+  padding: 13px 20px;
+  border-radius: 8px;
+  box-shadow: 0 8px 25px #14395112;
+  font-size: 13px;
+  color: #37575e;
+}
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 32px;
+}
+.dashboard-stats button {
+  background: white;
+  border: 1px solid #e0e9e8;
+  border-radius: 16px;
+  text-align: left;
+  padding: 22px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  color: #143951;
+}
+.dashboard-stats strong {
+  font-size: 30px;
+}
+.dashboard-stats span {
+  grid-column: 1;
+  font-size: 14px;
+  color: #5a707a;
+  margin-top: 4px;
+}
+.dashboard-stats i {
+  grid-row: 1;
+  grid-column: 2;
+  font-style: normal;
+  color: #159383;
+}
+.dashboard-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dashboard-section-title h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.dashboard-section-title > span {
+  font-size: 13px;
+}
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 30px;
+}
+.dashboard-actions > button {
+  background: white;
+  border: 1px solid #dce7e5;
+  border-radius: 18px;
+  padding: 25px;
+  text-align: left;
+  color: #143951;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+.dashboard-actions > button:hover,
+.people-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 26px #1439510d;
+}
+.action-symbol {
+  display: grid;
+  place-items: center;
+  width: 45px;
+  height: 45px;
+  border-radius: 13px;
+  background: #eaf5f1;
+  color: #138a7d;
+  font-size: 27px;
+}
+.dashboard-actions h3 {
+  font-size: 18px;
+  margin: 18px 0 8px;
+}
+.dashboard-actions p {
+  color: #657a83;
+  line-height: 1.6;
+  font-size: 14px;
+  min-height: 44px;
+}
+.dashboard-actions b {
+  font-size: 13px;
+  color: #16796f;
+}
+.dashboard-bottom {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 22px;
+}
+.dashboard-panel {
+  padding: 26px;
+  border: 1px solid #e0e9e8;
+  border-radius: 20px;
+  background: white;
+  min-width: 0;
+}
+.dashboard-empty {
+  text-align: center;
+  padding: 25px;
+  color: #657a83;
+}
+.dashboard-empty > span {
+  font-size: 36px;
+  color: #279b8e;
+}
+.dashboard-empty h3 {
+  color: #254b5d;
+  margin: 12px 0;
+}
+.profile-progress {
+  background: #f5faf7;
+}
+.profile-progress h2 {
+  font-size: 24px;
+  line-height: 1.3;
+}
+.profile-progress p {
+  font-size: 14px;
+  color: #58717b;
+  line-height: 1.6;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 24px;
+}
+.profile-progress progress {
+  width: 100%;
+  height: 10px;
+  accent-color: #15998a;
+  margin: 10px 0 22px;
+}
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.people-card {
+  border: 1px solid #dde7e4;
+  border-radius: 20px;
+  overflow: hidden;
+  background: white;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.people-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  display: block;
+  width: 100%;
+  color: inherit;
+  flex: 1;
+}
+.people-open:focus-visible {
+  outline: 3px solid #15998a;
+  outline-offset: -3px;
+}
+.people-photo {
+  position: relative;
+}
+.profile-portrait {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  display: block;
+}
+.portrait-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(140deg, #dceee8, #e6edf5);
+  color: #34766c;
+  gap: 10px;
+}
+.portrait-placeholder > span {
+  display: grid;
+  place-items: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: #ffffff9c;
+  font-size: 45px;
+}
+.portrait-placeholder > small {
+  font-size: 12px;
+}
+.people-score {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  background: #fffef4;
+  color: #20594e;
+  border-radius: 30px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 3px 12px #14395112;
+}
+.people-copy {
+  padding: 21px;
+}
+.people-location {
+  font-size: 12px;
+  color: #628079;
+  margin: 0 0 7px;
+}
+.people-copy h2 {
+  font-size: 24px;
+  margin: 0 0 8px;
+  color: #163c50;
+}
+.people-budget {
+  font-size: 15px;
+  font-weight: 700;
+  color: #16796f;
+  margin: 0;
+}
+.people-intro {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #647982;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 65px;
+}
+.people-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 20px;
+}
+.people-page .browse-section-header {
+  margin-top: 28px;
+}
+.person-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.person-detail-main > .profile-portrait {
+  height: 400px;
+  border-radius: 20px;
+}
+.person-detail-main .form-section {
+  margin-top: 22px;
+}
+.person-detail-aside .form-section {
+  margin-top: 0;
+  margin-bottom: 22px;
+}
+.person-detail-aside textarea {
+  min-height: 135px;
+}
+.person-detail-aside ul {
+  padding-left: 20px;
+  line-height: 1.8;
+  color: #526d77;
+  font-size: 14px;
+}
+.person-detail-aside .large-score {
+  font-size: 48px;
+  color: #158577;
+  margin: 14px 0;
+}
+.person-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-top: 26px;
+}
+.person-facts dt {
+  font-size: 12px;
+  color: #6a7d83;
+  margin-bottom: 7px;
+}
+.person-facts dd {
+  margin: 0;
+  font-weight: 600;
+  color: #254758;
+}
+.preserve-lines {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.profile-photo-editor > .profile-portrait {
+  width: 180px;
+  height: 180px;
+  border-radius: 18px;
+  margin: 20px 0;
+}
+.profile-photo-editor textarea {
+  min-height: 120px;
+}
+.conversation-list span {
+  overflow-wrap: anywhere;
+}
+.bubble p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .people-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-welcome {
+    padding: 28px;
+  }
+  .dashboard-actions > button {
+    padding: 19px;
+  }
+  .dashboard-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-welcome {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+  .dashboard-art {
+    display: none;
+  }
+  .dashboard-stats {
+    gap: 8px;
+  }
+  .dashboard-stats button {
+    padding: 14px 10px;
+  }
+  .dashboard-stats span {
+    font-size: 11px;
+  }
+  .dashboard-actions,
+  .people-grid,
+  .person-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .dashboard-panel {
+    padding: 20px;
+  }
+  .person-detail-main > .profile-portrait {
+    height: 300px;
+  }
+  .people-page .flatmate-search {
+    display: flex;
+    flex-direction: column;
+  }
+  .people-page .flatmate-search > * {
+    width: 100%;
+  }
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
@@ -2104,10 +2532,7 @@
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding:
-    clamp(34px, 4vw, 64px)
-    clamp(24px, 3.5vw, 58px)
-    80px;
+  padding: clamp(34px, 4vw, 64px) clamp(24px, 3.5vw, 58px) 80px;
 }
 
 .quick-cards {

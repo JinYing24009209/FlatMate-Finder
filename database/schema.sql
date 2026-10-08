@@ -225,3 +225,29 @@ CHECK (
 );
 
 COMMIT;
+
+-- Profile portraits and private student-to-student enquiries.
+BEGIN;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_photo TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS about_me VARCHAR(1000);
+CREATE TABLE IF NOT EXISTS flatmate_conversation (
+  conversation_id SERIAL PRIMARY KEY,
+  member_low INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  member_high INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(member_low, member_high),
+  CHECK(member_low < member_high)
+);
+CREATE TABLE IF NOT EXISTS flatmate_message (
+  message_id SERIAL PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES flatmate_conversation(conversation_id) ON DELETE CASCADE,
+  sender_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 3000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS flatmate_message_conversation_idx
+  ON flatmate_message(conversation_id, created_at, message_id);
+CREATE INDEX IF NOT EXISTS flatmate_conversation_high_idx ON flatmate_conversation(member_high);
+COMMIT;
