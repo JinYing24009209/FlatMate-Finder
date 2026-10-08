@@ -118,7 +118,6 @@ export default function AppLayout({
   return (
     <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="sidebar">
-
         {/* return key */}
 
         <button
