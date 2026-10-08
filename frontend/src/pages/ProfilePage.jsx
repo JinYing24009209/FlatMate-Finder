@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
+import ProfilePhoto from '../components/ProfilePhoto';
 export default function ProfilePage({ user }) {
   const [account, setAccount] = useState({ full_name: '', email: '', phone: '' });
   const [profile, setProfile] = useState({
+    profile_photo: '',
+    about_me: '',
     budget_min: '',
     budget_max: '',
     preferred_location: '',
@@ -17,6 +20,8 @@ export default function ProfilePage({ user }) {
   });
   const [tags, setTags] = useState('');
   const [notice, setNotice] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     Promise.all([api('/auth/me'), api('/profile/me')])
       .then(([a, p]) => {
@@ -26,9 +31,13 @@ export default function ProfilePage({ user }) {
           setTags((p.profile.lifestyle_tags || []).join(', '));
         }
       })
-      .catch((e) => setNotice(e.message));
+      .catch((e) => setNotice(e.message))
+      .finally(() => setLoading(false));
   }, []);
   const save = async () => {
+    if (loading || saving) return;
+    setSaving(true);
+    setNotice('');
     try {
       await Promise.all([
         api('/auth/me', { method: 'PATCH', body: JSON.stringify(account) }),
@@ -46,6 +55,8 @@ export default function ProfilePage({ user }) {
       setNotice('Profile saved successfully.');
     } catch (e) {
       setNotice(e.message);
+    } finally {
+      setSaving(false);
     }
   };
   const field = (name, label, type = 'text') => (
@@ -91,6 +102,59 @@ export default function ProfilePage({ user }) {
           </label>
         </div>
       </section>
+      {user.role === 'student' && user.student_type === 'flatmate' && (
+        <section className="form-section profile-photo-editor">
+          <h2>Your public flatmate profile</h2>
+          <p className="muted">
+            Your photo and introduction appear to other flatmate students when matching visibility
+            is enabled.
+          </p>
+          <ProfilePhoto src={profile.profile_photo} name={account.full_name || 'Student'} />
+          <label>
+            Profile photo (JPEG, PNG or WebP, below 1 MB)
+            <input
+              type="file"
+              disabled={loading || saving}
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (
+                  !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+                  file.size > 1000000
+                ) {
+                  setNotice('Choose a JPEG, PNG or WebP image below 1 MB.');
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setProfile((old) => ({ ...old, profile_photo: reader.result }));
+                  setNotice('Photo selected. Save your profile to publish it.');
+                };
+                reader.onerror = () => setNotice('Could not read this photo. Please try another.');
+                reader.readAsDataURL(file);
+              }}
+            />
+          </label>
+          {profile.profile_photo && (
+            <button
+              className="text-button"
+              onClick={() => setProfile({ ...profile, profile_photo: '' })}
+            >
+              Remove photo
+            </button>
+          )}
+          <label>
+            About me
+            <textarea
+              maxLength={1000}
+              value={profile.about_me || ''}
+              placeholder="Tell potential flatmates about yourself and the home you are looking for."
+              onChange={(event) => setProfile({ ...profile, about_me: event.target.value })}
+            />
+          </label>
+        </section>
+      )}
       {user.role === 'advertiser' ? (
         <section className="form-section">
           <h2>Public advertiser information</h2>
@@ -172,8 +236,8 @@ export default function ProfilePage({ user }) {
           <p className="muted">Contact details and private messages are never used for matching.</p>
         </section>
       )}
-      <button className="primary" onClick={save}>
-        Save profile
+      <button className="primary" disabled={loading || saving} onClick={save}>
+        {loading ? 'Loading profile…' : saving ? 'Saving…' : 'Save profile'}
       </button>
       {notice && <p className="notice">{notice}</p>}
     </main>
