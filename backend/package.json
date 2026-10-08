@@ -11,7 +11,7 @@
     "ai:reindex": "node scripts/rebuildEmbeddings.js",
     "seed:demo": "node scripts/seedDemo.js",
     "repair:photo-sequence": "node scripts/repairPhotoSequence.js"
-},
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
