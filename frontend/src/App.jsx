@@ -10,15 +10,13 @@ import ProfilePage from './pages/ProfilePage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import SavedPage from './pages/SavedPage';
 import MatchesPage from './pages/MatchesPage';
+import FlatmateDetailPage from './pages/FlatmateDetailPage';
+import FlatmateEnquiriesPage from './pages/FlatmateEnquiriesPage';
 import ListingFormPage from './pages/ListingFormPage';
 import MyListingsPage from './pages/MyListingsPage';
 import AdminPage from './pages/AdminPage';
 import './styles/app.css';
-import {
-  getDefaultPage,
-  resolveAccountPage,
-} from './utils/accountNavigation';
-
+import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -30,44 +28,37 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [navigationHistory, setNavigationHistory] = useState([]);
 
-// Record the current page, including the properties currently being viewed or edited.
-const rememberCurrentPage = () => {
-  setNavigationHistory((history) => [
-    ...history,
-    { view, page, selected, editing, focusEnquiry },
-  ]);
-};
+  // Record the current page, including the properties currently being viewed or edited.
+  const rememberCurrentPage = () => {
+    setNavigationHistory((history) => [
+      ...history,
+      { view, page, selected, editing, focusEnquiry },
+    ]);
+  };
 
-// Switch to outer pages such as the home page and login page.
-const navigateView = (nextView) => {
-  if (nextView === view) return;
+  // Switch to outer pages such as the home page and login page.
+  const navigateView = (nextView) => {
+    if (nextView === view) return;
 
-  rememberCurrentPage();
-  setView(nextView);
-};
+    rememberCurrentPage();
+    setView(nextView);
+  };
 
-// Return to the page you just visited.
-const goBack = () => {
-  if (navigationHistory.length === 0) return;
+  // Return to the page you just visited.
+  const goBack = () => {
+    if (navigationHistory.length === 0) return;
 
-  const previous = navigationHistory[navigationHistory.length - 1];
+    const previous = navigationHistory[navigationHistory.length - 1];
 
-  setNavigationHistory((history) => history.slice(0, -1));
-  setView(previous.view);
-  setPageState(
-    user
-      ? resolveAccountPage(user, previous.page)
-      : previous.page
-  );
-  setSelected(previous.selected);
-  setEditing(previous.editing);
-  setFocusEnquiry(previous.focusEnquiry);
-};
+    setNavigationHistory((history) => history.slice(0, -1));
+    setView(previous.view);
+    setPageState(user ? resolveAccountPage(user, previous.page) : previous.page);
+    setSelected(previous.selected);
+    setEditing(previous.editing);
+    setFocusEnquiry(previous.focusEnquiry);
+  };
 
-const canGoBack = navigationHistory.length > 0;
-
-
-
+  const canGoBack = navigationHistory.length > 0;
 
   useEffect(() => {
     api('/auth/me')
@@ -82,25 +73,16 @@ const canGoBack = navigationHistory.length > 0;
 
   const setPage = (next, options = {}) => {
     next = resolveAccountPage(user, next);
-  const nextFocus =
-    next === 'Enquiries'
-      ? options.enquiryId || focusEnquiry
-      : null;
+    const nextFocus = next === 'Enquiries' ? options.enquiryId || focusEnquiry : null;
 
-  if (
-    view !== 'app' ||
-    page !== next ||
-    focusEnquiry !== nextFocus
-  ) {
-    rememberCurrentPage();
-  }
+    if (view !== 'app' || page !== next || focusEnquiry !== nextFocus) {
+      rememberCurrentPage();
+    }
 
-  setFocusEnquiry(nextFocus);
-  setPageState(next);
-  setView('app');
+    setFocusEnquiry(nextFocus);
+    setPageState(next);
+    setView('app');
   };
-
-
 
   if (loading) return <div className="loading">Loading FlatMate Finder…</div>;
   if (view === 'home')
@@ -109,14 +91,8 @@ const canGoBack = navigationHistory.length > 0;
         user={user}
         onBack={goBack}
         canGoBack={canGoBack}
-        onStart={() =>
-          user
-            ? setPage(getDefaultPage(user))
-            : navigateView('auth')
-        }
-        onBrowse={() =>
-          user ? setPage('Browse listings') : navigateView('auth')
-        }
+        onStart={() => (user ? setPage(getDefaultPage(user)) : navigateView('auth'))}
+        onBrowse={() => (user ? setPage('Browse listings') : navigateView('auth'))}
         onListing={(listing) => {
           setSelected(listing);
 
@@ -130,41 +106,36 @@ const canGoBack = navigationHistory.length > 0;
     );
   if (view === 'public-listing')
     return (
-    <>
-      <div className="public-back-bar">
-        <button
-          type="button"
-          className="page-back-button"
-          onClick={goBack}
-          disabled={!canGoBack}
-        >
-          ← Back
-        </button>
-      </div>
+      <>
+        <div className="public-back-bar">
+          <button type="button" className="page-back-button" onClick={goBack} disabled={!canGoBack}>
+            ← Back
+          </button>
+        </div>
 
-      <ListingDetailPage
-        listing={selected}
-        user={null}
-        setPage={goBack}
-        onSignIn={() => navigateView('auth')}
-      />
-    </>
-  );
+        <ListingDetailPage
+          listing={selected}
+          user={null}
+          setPage={goBack}
+          onSignIn={() => navigateView('auth')}
+        />
+      </>
+    );
   if (view === 'auth')
     return (
       <AuthPage
-      setUser={(value) => {
-        setUser(value);
+        setUser={(value) => {
+          setUser(value);
 
-        setNavigationHistory([]);
-        setPageState(getDefaultPage(value));
-        setSelected(null);
-        setEditing(null);
-        setFocusEnquiry(null);
-        setView('app');
-      }}
-      onBack={goBack}
-    />
+          setNavigationHistory([]);
+          setPageState(getDefaultPage(value));
+          setSelected(null);
+          setEditing(null);
+          setFocusEnquiry(null);
+          setView('app');
+        }}
+        onBack={goBack}
+      />
     );
   const logout = async () => {
     await api('/auth/logout', { method: 'POST' });
@@ -181,10 +152,20 @@ const canGoBack = navigationHistory.length > 0;
     'Browse listings': <BrowsePage user={user} setPage={setPage} setSelected={setSelected} />,
     'Listing detail': <ListingDetailPage listing={selected} user={user} setPage={setPage} />,
     'My profile': <ProfilePage user={user} />,
-    Enquiries: <EnquiriesPage user={user} focusId={focusEnquiry} />,
+    Enquiries:
+      user?.student_type === 'flatmate' ? (
+        <FlatmateEnquiriesPage key={focusEnquiry || 'inbox'} user={user} focusId={focusEnquiry} />
+      ) : (
+        <EnquiriesPage user={user} focusId={focusEnquiry} />
+      ),
     'Saved listings': <SavedPage setPage={setPage} setSelected={setSelected} />,
-    'Flatmate matches': <MatchesPage />,
-    'Saved flatmates': <MatchesPage savedOnly />,
+    'Flatmate matches': <MatchesPage key="matches" setPage={setPage} setSelected={setSelected} />,
+    'Saved flatmates': (
+      <MatchesPage key="saved-flatmates" savedOnly setPage={setPage} setSelected={setSelected} />
+    ),
+    'Flatmate detail': (
+      <FlatmateDetailPage key={selected?.user_id} person={selected} setPage={setPage} />
+    ),
     'Create listing': <ListingFormPage editing={editing} setPage={setPage} />,
     'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} />,
     'Admin dashboard': <AdminPage />,

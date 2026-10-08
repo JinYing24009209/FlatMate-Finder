@@ -15,6 +15,8 @@ const emptyFilters = {
 export default function BrowsePage({ user, setPage, setSelected }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [listings, setListings] = useState([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState('');
   const [recommendations, setRecommendations] = useState([]);
   const [savedIds, setSavedIds] = useState(new Set());
   const [notice, setNotice] = useState('');
@@ -37,11 +39,14 @@ export default function BrowsePage({ user, setPage, setSelected }) {
   };
 
   const loadAll = async (activeFilters = emptyFilters) => {
+    setListingsError('');
     try {
       const data = await api(`/listings?${new URLSearchParams(activeFilters)}`);
-      setListings(data.listings);
+      setListings(data.listings || []);
     } catch (error) {
-      setNotice(error.message);
+      setListingsError(error.message);
+    } finally {
+      setListingsLoading(false);
     }
   };
 
@@ -107,7 +112,9 @@ export default function BrowsePage({ user, setPage, setSelected }) {
 
     refresh();
     if (user.role === 'student') loadSaved();
-    api('/ai/status').then(setAiStatus).catch(() => {});
+    api('/ai/status')
+      .then(setAiStatus)
+      .catch(() => {});
     window.addEventListener('listings-changed', refresh);
     window.addEventListener('storage', storage);
     window.addEventListener('focus', refresh);
@@ -339,7 +346,20 @@ export default function BrowsePage({ user, setPage, setSelected }) {
               </div>
             </div>
             <div className="listing-grid">{listings.map((listing) => renderCard(listing))}</div>
-            {!listings.length && <div className="empty">No listings are available yet.</div>}
+            {listingsLoading ? (
+              <div className="empty" role="status">
+                Loading available rooms…
+              </div>
+            ) : listingsError ? (
+              <div className="empty" role="alert">
+                {listingsError}{' '}
+                <button className="outline" onClick={() => loadAll()}>
+                  Try again
+                </button>
+              </div>
+            ) : (
+              !listings.length && <div className="empty">No listings are available yet.</div>
+            )}
           </section>
         </>
       )}

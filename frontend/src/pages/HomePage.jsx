@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
-export default function HomePage({
-  user,
-  onStart,
-  onBrowse,
-  onListing,
-  onBack,
-  canGoBack,
-}) {
-
+export default function HomePage({ user, onStart, onBrowse, onListing, onBack, canGoBack }) {
   const [listings, setListings] = useState([]);
   useEffect(() => {
     const load = () =>
@@ -47,7 +39,7 @@ export default function HomePage({
             <b aria-hidden="true">FM</b>
             <h1 className="home-site-title">FlatMate Finder</h1>
           </div>
-        </div>  
+        </div>
         <div>
           {(!user || user.role === 'student') && (
             <button className="text-button" onClick={onBrowse}>

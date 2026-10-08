@@ -1,37 +1,22 @@
-const housingPages = [
-  'Browse listings',
-  'Saved listings',
-  'Enquiries',
-  'My profile',
-];
+const housingPages = ['Dashboard', 'Browse listings', 'Saved listings', 'Enquiries', 'My profile'];
 
 const flatmatePages = [
+  'Dashboard',
   'Flatmate matches',
   'Saved flatmates',
   'Enquiries',
   'My profile',
 ];
 
-const advertiserPages = [
-  'Dashboard',
-  'My listings',
-  'Create listing',
-  'Enquiries',
-  'My profile',
-];
+const advertiserPages = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
 
-const adminPages = [
-  'Dashboard',
-  'Admin dashboard',
-];
+const adminPages = ['Dashboard', 'Admin dashboard'];
 
 export function getAccountPages(user) {
   if (!user) return [];
 
   if (user.role === 'student') {
-    return user.student_type === 'flatmate'
-      ? flatmatePages
-      : housingPages;
+    return user.student_type === 'flatmate' ? flatmatePages : housingPages;
   }
 
   if (user.role === 'advertiser') {
@@ -65,5 +50,11 @@ export function resolveAccountPage(user, requestedPage) {
     return requestedPage;
   }
 
+  if (
+    user?.role === 'student' &&
+    user.student_type === 'flatmate' &&
+    requestedPage === 'Flatmate detail'
+  )
+    return requestedPage;
   return getDefaultPage(user);
 }
