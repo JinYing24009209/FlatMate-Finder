@@ -105,3 +105,11 @@ the Gemini variables above, and frontend `VITE_API_URL` (including `/api`). Prod
 cloud PostgreSQL and cross-site secure HTTP-only cookies.
 
 Before a real launch, replace the bootstrap admin code, use managed object storage instead of database data-URL photos, add email verification/password reset, configure backups and rate limiting, and complete an accessibility/security review.
+
+## Student journeys
+
+Both student types now start at Dashboard. Housing students can browse all available rooms without entering search filters. Flatmate students can upload a JPEG/PNG/WebP portrait (below 1 MB) and an introduction in My profile, open profile cards, save people, and start private enquiries. Conversations and unread messages are stored in PostgreSQL and visible only to their two participants. Existing conversations remain available if a profile becomes hidden.
+
+Run `npm run migrate` in backend before starting the updated application. This adds profile fields and flatmate conversation/message tables without deleting existing records. Accounts without a portrait show a labelled placeholder.
+
+Run `npm test` in backend for unit tests. The opt-in database integration test requires the migrated database: in PowerShell set `$env:RUN_DATABASE_TESTS='1'`, then run `npm test`. It creates temporary test accounts and removes their records in cleanup.
