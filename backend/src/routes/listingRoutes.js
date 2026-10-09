@@ -4,13 +4,12 @@ const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const { notify, notifyListingChange } = require('../services/notificationService');
 const { createReport } = require('../services/reportService');
-const { saveCategories } = require('../services/categoryService');
 const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
 const { storeListingEmbedding, enhancedSafetyCheck } = require('../services/aiService');
 const select = `
-  SELECT l.*, ARRAY(SELECT category_id FROM listing_category_link WHERE listing_id=l.listing_id ORDER BY category_id) category_ids,
+  SELECT l.*,
     u.full_name advertiser_name, pr.advertiser_bio,
     CASE WHEN pr.display_phone THEN u.phone ELSE NULL END advertiser_phone,
     COALESCE(
@@ -54,7 +53,7 @@ const { searchFilters,extraListingConditions } = require('../services/listingFil
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const { q, city, roomType, availableFrom,transportIds,utilityIds,lifestyle } = searchFilters(req.query);
+    const { q, city, roomType, availableFrom,transport,utilities,lifestyle } = searchFilters(req.query);
     let rentFilters;
     try {
       rentFilters = searchFilters(req.query);
@@ -64,7 +63,7 @@ router.get(
     const sql = `${select}
       WHERE l.status = 'available'
         AND (l.title ILIKE $1 OR l.description ILIKE $1 OR l.suburb ILIKE $1)
-        AND ($2 = '' OR l.city ILIKE $2 OR l.suburb ILIKE $2)
+        AND ($2 = '' OR lower(l.city) = lower($2))
         AND l.rent >= $3 AND ($4::numeric IS NULL OR l.rent <= $4)
         AND ($5 = '' OR l.room_type = $5)
         AND ($6::date IS NULL OR l.available_from <= $6::date)
@@ -78,7 +77,7 @@ router.get(
       rentFilters.maxRent,
       roomType,
       availableFrom || null,
-      transportIds,utilityIds,lifestyle,
+      transport,utilities,lifestyle,
     ]);
     res.json({ listings: rows });
   })
@@ -133,7 +132,6 @@ router.post(
         rows: [listing],
       } = await client.query(sql, listingValues(d, req.user.userId)));
       await savePhotos(client, listing.listing_id, d.photos);
-      listing = await saveCategories(client, listing.listing_id, d);
       if (!screening.safe)
         await createReport(client,{reporterId:req.user.userId,listingId:listing.listing_id,
           userId:listing.advertiser_id,reason:'AI safety screening',description:screening.flags.join(' '),
@@ -202,7 +200,6 @@ router.put(
       } = await client.query(sql, values));
       if (!listing) throw v.invalid('Listing not found.', 404);
       if (Array.isArray(d.photos)) await savePhotos(client, old.listing_id, d.photos);
-      listing = await saveCategories(client, old.listing_id, d);
       await notifyListingChange(client,before,listing);
       // 房源更新已锁定该行，避免并发编辑产生重复待处理举报。 | The listing row lock serializes automatic report updates.
       const risk = screening.safe

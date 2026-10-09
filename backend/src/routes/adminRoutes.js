@@ -6,6 +6,25 @@ const {transaction}=require('../services/transaction');
 const {notify,notifyListingChange}=require('../services/notificationService');
 const v=require('../services/validation');
 router.use(auth, allow('admin'));
+router.get('/users/:id', asyncRoute(async(req,res)=>{
+  const {rows:[user]}=await pool.query(
+    `SELECT u.user_id,u.full_name,u.role,u.is_active,u.student_type,
+    p.about_me,p.advertiser_bio,p.preferred_location,p.study_habits,p.lifestyle_tags,p.move_in_date,
+    p.budget_min,p.budget_max FROM users u LEFT JOIN profiles p USING(user_id) WHERE u.user_id=$1`,[req.params.id]);
+  if(!user)
+    return fail(res,404,'This user no longer exists. The report snapshot remains available.');
+  res.json({user});
+}));
+router.get('/listings/:id', asyncRoute(async(req,res)=>{
+  const {rows:[listing]}=await pool.query(
+    `SELECT l.*,u.full_name advertiser_name,
+    COALESCE((SELECT json_agg(photo_url ORDER BY display_order,photo_id) 
+    FROM listing_photo WHERE listing_id=l.listing_id),'[]') photos
+    FROM listing l JOIN users u ON u.user_id=l.advertiser_id WHERE l.listing_id=$1`,[req.params.id]);
+  if(!listing)
+    return fail(res,404,'This listing no longer exists. The report snapshot remains available.');
+  res.json({listing});
+}));
 router.get(
   '/stats',
   asyncRoute(async (_req, res) => {
@@ -162,16 +181,12 @@ router.patch(
     const note=v.text(req.body.resolution_note,'Outcome explanation',1000) ||
       (req.body.status==='dismissed'?'The report was dismissed after review.':'The report has been reviewed by an administrator.');
     const report=await transaction(async client=>{
-      const {rows:[old]}=await client.query(
-        'SELECT * FROM report WHERE report_id=$1 FOR UPDATE',[req.params.id]);
-      if(!old)
-        throw v.invalid('Report not found.',404);
-      if(old.status!=='pending')
-        throw v.invalid('This report has already been processed; its original review is preserved.',409);
+      const {rows:[old]}=await client.query('SELECT * FROM report WHERE report_id=$1 FOR UPDATE',[req.params.id]);
+      if(!old)throw v.invalid('Report not found.',404);
+      if(old.status!=='pending')throw v.invalid('This report has already been processed; its original review is preserved.',409);
       const {rows:[updated]}=await client.query(`UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now(),resolution_note=$4
         WHERE report_id=$3 RETURNING *`,[req.body.status,req.user.userId,req.params.id,note]);
-      await notify(updated.reporter_id,'report_result',`Report #${updated.report_id} 
-        ${updated.status}: ${note}`.slice(0,500),'report',updated.report_id,client);
+      await notify(updated.reporter_id,'report_result',`Report #${updated.report_id} ${updated.status}: ${note}`.slice(0,500),'report',updated.report_id,client);
       return updated;
     });
     res.json({ message: 'Report reviewed.', report });
