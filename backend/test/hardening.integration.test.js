@@ -129,6 +129,8 @@ test('security and data-integrity regressions against PostgreSQL', {
     await new Promise(resolve=>server.close(resolve));
     try {
       // Catch any fixture registered just before an assertion failed.
+      await pool.query(`DELETE FROM notification WHERE related_entity_type='report' AND related_entity_id IN
+        (SELECT report_id FROM report WHERE reporter_id IN (SELECT user_id FROM users WHERE email LIKE $1))`,[prefix+'-%@example.invalid']);
       await pool.query('DELETE FROM users WHERE email LIKE $1',[prefix+'-%@example.invalid']);
       await pool.query('DELETE FROM admin_invite WHERE code=$1',[prefix]);
     } finally {
