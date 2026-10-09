@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import ListingCard from '../components/ListingCard';
+import DateInput from '../components/DateInput';
 import { api } from '../services/api';
 
 const emptyFilters = {
@@ -126,6 +127,9 @@ export default function BrowsePage({ user, setPage, setSelected }) {
       window.removeEventListener('focus', refresh);
       window.clearInterval(timer);
     };
+    // This lifecycle owns one set of window listeners/timer for the mounted account.
+    // Search changes are read from searchSessionRef, so restarting it on every keystroke is wrong.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recommendationById = useMemo(
@@ -241,9 +245,8 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             </select>
             <label className="date-filter">
               Available by
-              <input
+              <DateInput
                 aria-label="Available by"
-                type="date"
                 value={filters.availableFrom}
                 onChange={(event) => setFilters({ ...filters, availableFrom: event.target.value })}
               />

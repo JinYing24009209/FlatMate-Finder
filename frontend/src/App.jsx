@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { api } from './services/api';
 import AppLayout from './components/AppLayout';
 import HomePage from './pages/HomePage';
@@ -15,6 +15,7 @@ import FlatmateEnquiriesPage from './pages/FlatmateEnquiriesPage';
 import ListingFormPage from './pages/ListingFormPage';
 import MyListingsPage from './pages/MyListingsPage';
 import AdminPage from './pages/AdminPage';
+import PaymentPage from './pages/PaymentPage';
 import './styles/app.css';
 import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
 
@@ -28,6 +29,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [navigationHistory, setNavigationHistory] = useState([]);
 
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [view, page, selected, editing, focusEnquiry, loading]);
+
   // Record the current page, including the properties currently being viewed or edited.
   const rememberCurrentPage = () => {
     setNavigationHistory((history) => [
@@ -38,6 +43,7 @@ export default function App() {
 
   // Switch to outer pages such as the home page and login page.
   const navigateView = (nextView) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     if (nextView === view) return;
 
     rememberCurrentPage();
@@ -72,6 +78,7 @@ export default function App() {
   }, []);
 
   const setPage = (next, options = {}) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     next = resolveAccountPage(user, next);
     const nextFocus = next === 'Enquiries' ? options.enquiryId || focusEnquiry : null;
 
@@ -149,8 +156,17 @@ export default function App() {
   };
   const pages = {
     Dashboard: <DashboardPage user={user} setPage={setPage} />,
+    'Admin home': <DashboardPage user={user} setPage={setPage} />,
     'Browse listings': <BrowsePage user={user} setPage={setPage} setSelected={setSelected} />,
-    'Listing detail': <ListingDetailPage listing={selected} user={user} setPage={setPage} />,
+    'Listing detail': (
+      <ListingDetailPage
+        listing={selected}
+        user={user}
+        setPage={setPage}
+        onCheckout={() => setPage('Payment checkout')}
+      />
+    ),
+    'Payment checkout': <PaymentPage listing={selected} setPage={setPage} />,
     'My profile': <ProfilePage user={user} />,
     Enquiries:
       user?.student_type === 'flatmate' ? (
@@ -168,7 +184,7 @@ export default function App() {
     ),
     'Create listing': <ListingFormPage editing={editing} setPage={setPage} />,
     'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} />,
-    'Admin dashboard': <AdminPage />,
+    'Platform management': <AdminPage />,
   };
   const activePage = resolveAccountPage(user, page);
   return (

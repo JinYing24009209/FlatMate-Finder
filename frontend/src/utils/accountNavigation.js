@@ -10,7 +10,7 @@ const flatmatePages = [
 
 const advertiserPages = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
 
-const adminPages = ['Dashboard', 'Admin dashboard'];
+const adminPages = ['Admin home', 'Platform management'];
 
 export function getAccountPages(user) {
   if (!user) return [];
@@ -49,6 +49,12 @@ export function resolveAccountPage(user, requestedPage) {
   ) {
     return requestedPage;
   }
+  if (
+    user?.role === 'student' &&
+    user.student_type !== 'flatmate' &&
+    requestedPage === 'Payment checkout'
+  )
+    return requestedPage;
 
   if (
     user?.role === 'student' &&

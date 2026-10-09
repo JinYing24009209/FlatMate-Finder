@@ -14,7 +14,10 @@ export default function SavedPage({ setPage, setSelected }) {
   };
   return (
     <main className="content">
-      <PageHeader title="Saved listings" subtitle="Your shortlist, ready for comparison." />
+      <PageHeader
+        title="Saved listings"
+        subtitle="Your shortlist with current, live availability shown on every home."
+      />
       <div className="listing-grid">
         {listings.map((listing) => (
           <ListingCard
