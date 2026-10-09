@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { formatDate } from '../utils/dates';
 import ProfilePhoto from '../components/ProfilePhoto';
+import ReportForm from '../components/ReportForm';
 import { api } from '../services/api';
 export default function FlatmateDetailPage({ person, setPage }) {
   const [profile, setProfile] = useState(null);
@@ -172,6 +173,7 @@ export default function FlatmateDetailPage({ person, setPage }) {
                   </p>
                 )}
               </form>
+              <ReportForm userId={profile.user_id} />
             </aside>
           </div>
         </>

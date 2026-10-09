@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import CategoryFields from '../components/CategoryFields';
 import PageHeader from '../components/PageHeader';
 import PhotoUploader from '../components/PhotoUploader';
 import DateInput from '../components/DateInput';
@@ -34,27 +35,21 @@ export default function ListingFormPage({ editing, setPage }) {
   const [form, setForm] = useState(initial);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [utilities, setUtilities] = useState(
-    Object.keys(initial.utilities || {})
-      .filter((k) => initial.utilities[k])
-      .join(', ')
-  );
-  const [transport, setTransport] = useState((initial.transport_options || []).join(', '));
+  const [categories,setCategories]=useState([]);
+  const [categoriesReady,setCategoriesReady]=useState(false);
+  useEffect(()=>{api('/categories').then(d=>{
+    setCategories(d.categories);
+    setForm(old=>({...old,category_ids:old.category_ids || d.categories.filter(c=>c.kind==='transport'
+      ?(old.transport_options||[]).some(n=>n.toLowerCase()===c.name.toLowerCase())
+      :Object.keys(old.utilities||{}).some(n=>old.utilities[n]&&n.toLowerCase()===c.name.toLowerCase())).map(c=>c.category_id)}));
+    setCategoriesReady(true);
+  }).catch(e=>setNotice(`Could not load categories: ${e.message}`));},[]);
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   const payload = () => ({
     ...form,
     bedrooms: 1,
-    utilities: Object.fromEntries(
-      utilities
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .map((x) => [x, true])
-    ),
-    transport_options: transport
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean),
+    utilities: {},
+    transport_options: [],
   });
   const save = async () => {
     setBusy(true);
@@ -171,27 +166,15 @@ export default function ListingFormPage({ editing, setPage }) {
             House rules
             <textarea name="house_rules" value={form.house_rules || ''} onChange={change} />
           </label>
-          <label>
-            Utilities included
-            <input
-              value={utilities}
-              onChange={(e) => setUtilities(e.target.value)}
-              placeholder="Power, water, internet"
-            />
-          </label>
-          <label>
-            Transport access
-            <input
-              value={transport}
-              onChange={(e) => setTransport(e.target.value)}
-              placeholder="Bus 2 min walk, cycle lane, train"
-            />
-          </label>
+          <CategoryFields categories={categories} selected={form.category_ids} kind="utility" label="Facilities & utilities included"
+            onChange={category_ids=>setForm({...form,category_ids})}/>
+          <CategoryFields categories={categories} selected={form.category_ids} kind="transport" label="Transport access"
+            onChange={category_ids=>setForm({...form,category_ids})}/>
         </div>
         <PhotoUploader photos={form.photos} onChange={(photos) => setForm({ ...form, photos })} />
       </section>
       <div className="button-row sticky-actions">
-        <button className="primary" onClick={save} disabled={busy}>
+        <button className="primary" onClick={save} disabled={busy||!categoriesReady}>
           {busy ? 'Saving photos and details…' : editing ? 'Save changes' : 'Publish listing'}
         </button>
       </div>
