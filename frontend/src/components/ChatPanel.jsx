@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
 const labels = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined' };
 export default function ChatPanel({ enquiry, user, onStatusChange }) {
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const data = await api(`/enquiries/${enquiry.enquiry_id}/messages`);
       setMessages(data.messages);
@@ -13,10 +13,10 @@ export default function ChatPanel({ enquiry, user, onStatusChange }) {
     } catch (e) {
       setError(e.message);
     }
-  };
+  }, [enquiry.enquiry_id]);
   useEffect(() => {
     load();
-  }, [enquiry.enquiry_id]);
+  }, [load]);
   const send = async (e) => {
     e.preventDefault();
     if (!body.trim()) return;
