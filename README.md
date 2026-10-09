@@ -76,11 +76,12 @@ npm run dev
 To enable Gemini, keep the key on the server only and set:
 
 ```text
-AI_MODE=gemini
 GEMINI_API_KEY=your-server-side-key
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_TEXT_MODEL=gemini-3.5-flash
 ```
+
+Provider selection currently follows the presence of `GEMINI_API_KEY`; `AI_MODE` is not a runtime switch. Remove the key to use local-only behaviour. Set model names to ones available to your Google account; unavailable models fall back locally.
 
 Existing listings need embeddings once. This sends only the public listing fields documented above
 to Gemini:
@@ -110,6 +111,31 @@ cloud PostgreSQL and cross-site secure HTTP-only cookies.
 Before a real launch, replace the bootstrap admin code, use managed object storage instead of database data-URL photos, add email verification/password reset, configure backups and rate limiting, and complete an accessibility/security review.
 
 ## Student journeys
+
+### Community update: migration and behaviour
+
+Before running this version, run `npm run migrate` from `backend`. New installations must first run `database/schema.sql`, then the migration. The migration now also applies `database/community-upgrade.sql`: it preserves existing records, backfills managed transport/facility choices and adds report evidence and notification snapshots. Back up the database before upgrading a shared deployment.
+
+- Saving a listing subscribes that user to changes in weekly rent, bond, available date and status. Updates and notifications commit together. Deletion sends a final notification with the old title, rent and date; the original listing is no longer accessible. Unchanged values do not create another notification. Existing flatmate message notifications are unchanged.
+- A new listing/user/message report notifies active administrators. A completed review sends the reporter a result; the full outcome is in Dashboard → My reports & outcomes. Reprocessing an already handled report returns 409. Report processing does not itself deactivate an account or close a listing: those are separate administrator actions.
+- Report a profile from its detail page or a received message from a flatmate conversation. The server checks conversation membership and records the selected message, sender and timestamp itself. Evidence notes and explanations go to administrators, not Gemini. Deleting a target preserves its report snapshot; this is not an indefinite-retention or legal-compliance policy.
+- Administrators can add, rename, deactivate and reactivate transport/facility options. Stable IDs preserve listing associations through renames. Retired options remain on existing listings but cannot be newly selected. Room types remain fixed (Single room, Double room, Shared room, Studio) so validation and matching share consistent meanings.
+- Listing search (normal and smart): all selected transport/facility IDs must match active options; every comma-separated lifestyle phrase must occur in description or house rules, case-insensitively. This text filter is not verification of actual behaviour. Available-by is inclusive. Explicit filters are enforced in SQL, not only in the browser.
+- Flatmate search: study routine is a case-insensitive substring; every comma-separated lifestyle tag must match a full tag, case-insensitively. Move-in from/to dates are inclusive and exclude undated profiles when a boundary is supplied. A maximum-budget filter compares the candidate's minimum budget, not their maximum. Inverted date ranges return 400.
+
+### AI data, fallback and limitations
+
+| Function | Fields sent to Gemini |
+| --- | --- |
+| Smart search | Current natural-language search text (up to 1,000 characters); semantic embeddings use search text and public listing content. |
+| Listing recommendation | Profile maximum budget, preferred location and lifestyle tags; up to 12 recently saved listings' rent/city/suburb/room type; candidate rent, area, room type, description (500 characters) and rules (300 characters). |
+| Listing summary | Listing title, description, weekly rent, suburb/city, availability date, room type, utilities and transport. |
+| Safety screening | Title, description, suburb/city, weekly rent and bond. Local safety checks also apply to Gemini results. |
+| Flatmate recommendation | Both sides' location, budget range, study habits and lifestyle tags; candidates are indexed rather than named. |
+
+Both local and Gemini listing recommendation use saved-listing context. There is **no stored search-history feature**, and neither algorithm claims to use past searches. Explicit identity/contact fields, passwords, payment details and private chat/report evidence are not included in these AI payloads. Free-text listing/profile/search fields may still contain personal information entered by users; users should avoid placing private information there.
+
+Calls use bounded input, deadlines, application rate/quota controls and validated outputs. Missing credentials, provider errors/timeouts or unusable results trigger local algorithms; unavailable embeddings fall back to local relevance. Actual result labels identify Gemini versus local fallback. A configured API key does not guarantee provider availability. Scores are preference hints, not probabilities, tenancy decisions or safety guarantees; summaries and screening need human verification. Rate/quota accounting is in-process and is not a shared multi-server billing cap.
 
 Both student types now start at Dashboard. Housing students can browse all available rooms without entering search filters. Flatmate students can upload a JPEG/PNG/WebP portrait (below 1 MB) and an introduction in My profile, open profile cards, save people, and start private enquiries. Conversations and unread messages are stored in PostgreSQL and visible only to their two participants. Existing conversations remain available if a profile becomes hidden.
 
