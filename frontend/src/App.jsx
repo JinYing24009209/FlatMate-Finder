@@ -15,6 +15,7 @@ import FlatmateEnquiriesPage from './pages/FlatmateEnquiriesPage';
 import ListingFormPage from './pages/ListingFormPage';
 import MyListingsPage from './pages/MyListingsPage';
 import AdminPage from './pages/AdminPage';
+import ReportTargetPage from './pages/ReportTargetPage';
 import PaymentPage from './pages/PaymentPage';
 import './styles/app.css';
 import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
@@ -198,7 +199,8 @@ export default function App() {
     ),
     'Create listing': <ListingFormPage editing={editing} setPage={setPage} />,
     'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} />,
-    'Platform management': <AdminPage />,
+    'Platform management': <AdminPage setPage={setPage} setSelected={setSelected} />,
+    'Report target': <ReportTargetPage target={selected} setPage={setPage} />,
   };
   const activePage = resolveAccountPage(user, page);
   return (
