@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
+import CategoryManager from '../components/CategoryManager';
+import { formatDateTime } from '../utils/dates';
+import '../styles/community.css';
 import { api } from '../services/api';
 export default function AdminPage() {
   const [reports, setReports] = useState([]);
@@ -7,6 +10,7 @@ export default function AdminPage() {
   const [listings, setListings] = useState([]);
   const [code, setCode] = useState('');
   const [notice, setNotice] = useState('');
+  const [outcomes, setOutcomes] = useState({});
   const [tab, setTab] = useState('reports');
   const [days, setDays] = useState(30);
   const [analytics, setAnalytics] = useState(null);
@@ -49,8 +53,12 @@ export default function AdminPage() {
     }
   };
   const review = async (id, status) => {
-    await api(`/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-    load();
+    if (!outcomes[id]?.trim()) return setNotice('Please explain the outcome for the reporter.');
+    try {
+      await api(`/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status, resolution_note: outcomes[id] }) });
+      setNotice('Report processed. The reporter has been notified.');
+      load();
+    } catch (error) { setNotice(error.message); }
   };
   const toggleUser = async (user) => {
     await api(`/admin/users/${user.user_id}`, {
@@ -126,12 +134,13 @@ export default function AdminPage() {
       )}
       {notice && <p className="notice">{notice}</p>}
       <div className="tabs admin-tabs">
-        {['reports', 'users', 'listings', 'access'].map((x) => (
+        {['reports', 'users', 'listings', 'categories', 'access'].map((x) => (
           <button key={x} className={tab === x ? 'selected' : ''} onClick={() => setTab(x)}>
-            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', access: 'Staff access' }[x]}
+            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', categories: 'Transport & facilities', access: 'Staff access' }[x]}
           </button>
         ))}
       </div>
+      {tab === 'categories' && <CategoryManager />}
       {tab === 'reports' && (
         <section>
           <h2>Safety & community reports</h2>
@@ -141,9 +150,14 @@ export default function AdminPage() {
                 <div>
                   <b>{report.reason}</b>
                   <p>
-                    {report.reporter_name} · {report.listing_title || 'User report'}
+                    {report.reporter_name} · {report.target_type} · {report.listing_title || report.reported_user_name || report.target_snapshot?.title || report.target_snapshot?.name || 'Removed target'}
                   </p>
                   <p className="muted">{report.description}</p>
+                  {report.evidence?.body && <blockquote className="report-evidence">{report.evidence.body}</blockquote>}
+                  {report.evidence?.sent_at && <p className="muted">Message #{report.evidence.message_id} · conversation #{report.evidence.conversation_id} · {formatDateTime(report.evidence.sent_at)}</p>}
+                  {report.evidence?.note && <p>Evidence note: {report.evidence.note}</p>}
+                  {report.resolution_note && <p>Outcome: {report.resolution_note}</p>}
+                  {report.status === 'pending' && <label>Outcome shared with reporter<textarea maxLength={1000} value={outcomes[report.report_id] || ''} onChange={(e) => setOutcomes({ ...outcomes, [report.report_id]: e.target.value })} /></label>}
                 </div>
                 {report.status === 'pending' ? (
                   <div className="button-row">

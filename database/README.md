@@ -9,3 +9,7 @@ The live project uses PostgreSQL on Neon.
 
 Do not commit a real `DATABASE_URL`. Keep it in `backend/.env` locally and in the hosting
 platform's environment settings for deployment.
+# Community upgrade
+
+After the existing schema is installed, run `npm run migrate` in `backend` before starting this version. It applies `upgrade.sql` followed by `community-upgrade.sql`. The latter adds managed category IDs and links, backfills existing transport/utilities once, and adds report evidence/outcomes and deletion-safe notification snapshots. It is additive and rerunnable; back up shared databases first. Do not rerun a destructive reset script to install this feature.
+

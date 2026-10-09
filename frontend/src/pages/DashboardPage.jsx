@@ -4,6 +4,8 @@ import { api } from '../services/api';
 import { formatDate } from '../utils/dates';
 export default function DashboardPage({ user, setPage }) {
   const [notifications, setNotifications] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [showAll, setShowAll] = useState(false);
   const [profile, setProfile] = useState(null);
   const [counts, setCounts] = useState({ saved: null, conversations: null, unread: null });
   const [error, setError] = useState('');
@@ -11,6 +13,18 @@ export default function DashboardPage({ user, setPage }) {
   const people = student && user.student_type === 'flatmate';
   const search = people ? 'Flatmate matches' : 'Browse listings';
   const saved = people ? 'Saved flatmates' : 'Saved listings';
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const [activity, ownReports] = await Promise.all([api('/notifications'), api('/reports/mine')]);
+        if (active) { setNotifications(activity.notifications); setReports(ownReports.reports); }
+      } catch (e) { if (active) setError(e.message); }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
   useEffect(() => {
     let active = true;
     const tasks = [api('/notifications'), api('/profile/me'), api('/unread-count')];
@@ -58,6 +72,12 @@ export default function DashboardPage({ user, setPage }) {
         setPage('Enquiries', { enquiryId: item.related_entity_id });
       else if (item.related_entity_type === 'enquiry' && !people)
         setPage('Enquiries', { enquiryId: item.related_entity_id });
+      else if (item.related_entity_type === 'report' && user.role === 'admin')
+        setPage('Platform management');
+      else if (item.related_entity_type === 'report')
+        document.getElementById('my-reports')?.scrollIntoView({ behavior: 'smooth' });
+      else if (item.related_entity_type === 'listing')
+        setPage('Saved listings');
     } catch (e) {
       setError(e.message);
     }
@@ -159,7 +179,7 @@ export default function DashboardPage({ user, setPage }) {
           </div>
           {notifications.length ? (
             <div className="stack">
-              {notifications.slice(0, 5).map((item) => (
+              {notifications.slice(0, showAll ? notifications.length : 5).map((item) => (
                 <button
                   className={`row-card notification-row ${item.is_read ? '' : 'unread'}`}
                   key={item.notification_id}
@@ -168,10 +188,12 @@ export default function DashboardPage({ user, setPage }) {
                   <div>
                     <b>{item.type.replaceAll('_', ' ')}</b>
                     <p>{item.message}</p>
+                    {item.related_entity_type === 'deleted_listing' && <small>This listing was removed. This notification preserves its last known details: ${item.metadata?.before?.rent}/week · available {item.metadata?.before?.available_from || 'not specified'}.</small>}
                   </div>
                   <small>{formatDate(item.created_at)}</small>
                 </button>
               ))}
+              {notifications.length > 5 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show fewer' : 'Show all updates'}</button>}
             </div>
           ) : (
             <div className="dashboard-empty">
@@ -211,6 +233,11 @@ export default function DashboardPage({ user, setPage }) {
           </aside>
         )}
       </div>
+      <section className="dashboard-panel" id="my-reports">
+        <h2>My reports & outcomes</h2>
+        {!reports.length && <p>No reports submitted.</p>}
+        {reports.map((report) => <article className="row-card" key={report.report_id}><div><b>{report.reason}</b><p>{report.target_snapshot?.title || report.target_snapshot?.name} · {formatDate(report.created_at)} · {report.status}</p><p>{report.resolution_note || 'Awaiting administrator review.'}</p></div></article>)}
+      </section>
     </main>
   );
 }
