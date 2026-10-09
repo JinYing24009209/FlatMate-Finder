@@ -35,6 +35,7 @@ export function getDefaultPage(user) {
 }
 
 export function resolveAccountPage(user, requestedPage) {
+  if(user?.role==='admin' && requestedPage==='Report target')return requestedPage;
   const pages = getAccountPages(user);
 
   if (pages.includes(requestedPage)) {
