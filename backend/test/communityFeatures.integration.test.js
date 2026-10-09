@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-test('community notifications, reports and managed filters', {
+test('community notifications, reports and free-text filters', {
   skip: process.env.RUN_DATABASE_TESTS !== '1', timeout: 180000,
 }, async (t) => {
   require('dotenv').config({ quiet: true });
@@ -12,13 +12,12 @@ test('community notifications, reports and managed filters', {
   app.use(express.json());
   app.use(require('cookie-parser')());
   for (const [path, file] of [['/auth','authRoutes'], ['/listings','listingRoutes'],
-    ['/admin','adminRoutes'], ['/categories','categoryRoutes'], ['/reports','reportRoutes'],
+    ['/admin','adminRoutes'], ['/reports','reportRoutes'],
     ['/','communityRoutes'], ['/','aiRoutes']]) app.use(path, require('../src/routes/' + file));
   app.use(require('../src/middleware/errorHandler').errorHandler);
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = 'http://127.0.0.1:' + server.address().port;
   const prefix = 'community-' + Date.now() + '-' + process.pid;
-  const categories = [];
   async function call(path, method = 'GET', body, cookie) {
     const response = await fetch(base + path, { method, headers: {'Content-Type':'application/json', ...(cookie ? {Cookie:cookie} : {})},
       ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
@@ -36,36 +35,36 @@ test('community notifications, reports and managed filters', {
     const other = await account('other', 'student');
     const admin = await account('admin', 'advertiser');
     await pool.query("UPDATE users SET role='admin' WHERE user_id=$1", [admin.id]);
-    let categoryId, listingId, reportId;
+    let listingId, reportId;
     const payload = {title:prefix, description:'Quiet non-smoking room.', rent:220, bond:0, address:'Fixture only',
       city:'Auckland', room_type:'Single room', available_from:'2026-10-10', photos:[]};
-    await t.test('only administrators can manage categories; IDs survive rename', async () => {
-      assert.equal((await call('/categories', 'POST', {kind:'transport', name:prefix}, student.cookie)).status,403);
-      const created = await call('/categories', 'POST', {kind:'transport', name:prefix}, admin.cookie);
-      assert.equal(created.status,201,JSON.stringify(created.data));
-      categoryId = created.data.category.category_id; categories.push(categoryId);
-      payload.category_ids = [categoryId];
+    await t.test('owners can enter transport and facilities without managed options', async () => {
+      payload.transport_options=['Bus stop 2 minutes away','Safe cycle lane'];
+      payload.utilities={'Fibre internet included':true,'Water':true,'Gas':false};
       const listing = await call('/listings','POST',payload,owner.cookie);
       assert.equal(listing.status,201,JSON.stringify(listing.data)); listingId=listing.data.listing.listing_id;
-      assert.equal((await call('/categories/'+categoryId,'PATCH',{name:prefix+' renamed'},admin.cookie)).status,200);
       const saved = (await pool.query('SELECT transport_options FROM listing WHERE listing_id=$1',[listingId])).rows[0];
-      assert.deepEqual(saved.transport_options,[prefix+' renamed']);
+      assert.deepEqual(saved.transport_options,payload.transport_options);
     });
-    await t.test('normal and smart searches enforce category and every lifestyle phrase', async () => {
+    await t.test('normal and smart searches enforce free text, city and every lifestyle phrase', async () => {
       for (const path of ['/listings','/ai/smart-search']) {
-        const result=await call(path+`?transportIds=${categoryId}&lifestyle=quiet,non-smoking`);
+        const result=await call(path+'?transport=BUS,cycle&utilities=internet,water&city=Auckland&lifestyle=quiet,non-smoking');
         assert.equal(result.status,200,JSON.stringify(result.data));
         assert.ok(result.data.listings.some(x=>x.listing_id===listingId));
-        const noMatch=await call(path+`?transportIds=${categoryId}&lifestyle=quiet,party`);
+        const noMatch=await call(path+'?transport=bus&utilities=gas&lifestyle=quiet');
         assert.equal(noMatch.status,200,JSON.stringify(noMatch.data));
         assert.ok(!noMatch.data.listings.some(x=>x.listing_id===listingId));
+        const wrongCity=await call(path+'?city=Wellington');
+        assert.ok(!wrongCity.data.listings.some(x=>x.listing_id===listingId));
       }
     });
-    await t.test('deactivation preserves old selections but prevents new ones', async () => {
-      assert.equal((await call('/categories/'+categoryId,'PATCH',{is_active:false},admin.cookie)).status,200);
-      assert.equal((await call('/listings','POST',payload,owner.cookie)).status,400);
+    await t.test('free-text edits remain validated and administrative details are protected', async () => {
+      assert.equal((await call('/listings','POST',{...payload,transport_options:['x'.repeat(161)]},owner.cookie)).status,400);
       assert.equal((await call('/listings/'+listingId,'PUT',payload,owner.cookie)).status,200);
-      assert.equal((await call('/categories/'+categoryId,'PATCH',{is_active:null},admin.cookie)).status,400);
+      assert.equal((await call('/admin/users/'+student.id,'GET',undefined,owner.cookie)).status,403);
+      const details=await call('/admin/users/'+student.id,'GET',undefined,admin.cookie);
+      assert.equal(details.status,200);assert.equal(details.data.user.password_hash,undefined);
+      assert.equal((await call('/admin/listings/'+listingId,'GET',undefined,admin.cookie)).status,200);
     });
     await t.test('flatmate filters use study text, exact lifestyle tags and inclusive dates', async () => {
       await pool.query("UPDATE users SET student_type='flatmate' WHERE user_id=ANY($1::int[])",[ [student.id,other.id] ]);
@@ -118,6 +117,7 @@ test('community notifications, reports and managed filters', {
       const {transaction}=require('../src/services/transaction');
       const report=await transaction(client=>createReport(client,{reporterId:student.id,listingId,reason:'Listing issue',description:'Fixture report',snapshot:{title:prefix,listing_id:listingId}}));
       assert.equal((await call('/listings/'+listingId,'DELETE',undefined,owner.cookie)).status,200);
+      assert.equal((await call('/admin/listings/'+listingId,'GET',undefined,admin.cookie)).status,404);
       const notice=(await pool.query("SELECT * FROM notification WHERE user_id=$1 AND type='listing_deleted'",[student.id])).rows[0];
       assert.equal(notice.metadata.before.title,prefix);
       const retained=(await pool.query('SELECT * FROM report WHERE report_id=$1',[report.report_id])).rows[0];
@@ -129,7 +129,6 @@ test('community notifications, reports and managed filters', {
       await pool.query(`DELETE FROM notification WHERE related_entity_type='report' AND related_entity_id IN
         (SELECT report_id FROM report WHERE reporter_id IN (SELECT user_id FROM users WHERE email LIKE $1))`,[prefix+'-%@example.invalid']);
       await pool.query('DELETE FROM users WHERE email LIKE $1',[prefix+'-%@example.invalid']);
-      await pool.query('DELETE FROM listing_category WHERE category_id=ANY($1::int[])',[categories]);
     } finally { await pool.end(); }
   }
 });
