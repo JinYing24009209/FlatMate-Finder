@@ -3,7 +3,7 @@ const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const { notify } = require('../services/notificationService');
-const { storeListingEmbedding, safetyCheck } = require('../services/aiService');
+const { storeListingEmbedding, enhancedSafetyCheck } = require('../services/aiService');
 const select = `
   SELECT l.*, u.full_name advertiser_name, pr.advertiser_bio,
     CASE WHEN pr.display_phone THEN u.phone ELSE NULL END advertiser_phone,
@@ -119,16 +119,15 @@ router.post(
       )
       RETURNING *
     `;
+    const screening = await enhancedSafetyCheck(d);
     const client = await pool.connect();
     let listing;
-    let screening;
     try {
       await client.query('BEGIN');
       ({
         rows: [listing],
       } = await client.query(sql, listingValues(d, req.user.userId)));
       await savePhotos(client, listing.listing_id, d.photos);
-      screening = safetyCheck(listing);
       if (!screening.safe)
         await client.query(
           `

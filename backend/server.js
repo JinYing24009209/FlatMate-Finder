@@ -25,6 +25,7 @@ app.use('/api', require('./src/routes/communityRoutes'));
 app.use('/api', require('./src/routes/aiRoutes'));
 app.use('/api/flatmates', require('./src/routes/flatmateRoutes').profiles);
 app.use('/api/flatmate-conversations', require('./src/routes/flatmateRoutes').conversations);
+app.use('/api/payments', require('./src/routes/paymentRoutes'));
 app.use('/api/admin', require('./src/routes/adminRoutes'));
 app.use(errorHandler);
 
