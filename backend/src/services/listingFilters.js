@@ -1,5 +1,4 @@
 const v = require('./validation');
-const {categoryIds}=require('./categoryService');
 function keywords(value,name='Lifestyle preferences') {
   if(value==null||value==='')return [];
   const items=typeof value==='string'?value.split(',').map(x=>x.trim()).filter(Boolean):value;
@@ -16,17 +15,15 @@ function searchFilters(query = {}) {
   return { ...listingFilters(query), q: v.text(query.q, 'Search text', 1000),
     city: v.text(query.city, 'City', 120), roomType: v.roomType(query.roomType),
     availableFrom: v.date(query.availableFrom, 'Available date'),
-    transportIds:categoryIds(query.transportIds,'Transport IDs'),utilityIds:categoryIds(query.utilityIds,'Utility IDs'),
+    transport:keywords(query.transport,'Transport'),utilities:keywords(query.utilities,'Facilities'),
     lifestyle:keywords(query.lifestyle) };
 }
-// Every selected category/keyword must match. Stable IDs, never fuzzy category names.
+// Every phrase must match literally; wildcard characters have no special meaning.
 function extraListingConditions(start=7) {
-  return `AND NOT EXISTS (SELECT 1 FROM unnest($${start}::int[]) requested(id)
-    WHERE NOT EXISTS(SELECT 1 FROM listing_category_link x JOIN listing_category c USING(category_id)
-      WHERE x.listing_id=l.listing_id AND c.category_id=requested.id AND c.kind='transport' AND c.is_active))
-    AND NOT EXISTS (SELECT 1 FROM unnest($${start+1}::int[]) requested(id)
-    WHERE NOT EXISTS(SELECT 1 FROM listing_category_link x JOIN listing_category c USING(category_id)
-      WHERE x.listing_id=l.listing_id AND c.category_id=requested.id AND c.kind='utility' AND c.is_active))
+  return `AND NOT EXISTS (SELECT 1 FROM unnest($${start}::text[]) phrase
+      WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(l.transport_options) item WHERE position(phrase in lower(item))>0))
+    AND NOT EXISTS (SELECT 1 FROM unnest($${start+1}::text[]) phrase
+      WHERE NOT EXISTS(SELECT 1 FROM jsonb_each(l.utilities) item WHERE item.value='true'::jsonb AND position(phrase in lower(item.key))>0))
     AND NOT EXISTS(SELECT 1 FROM unnest($${start+2}::text[]) preference
       WHERE position(lower(preference) in lower(COALESCE(l.description,'') || ' ' || COALESCE(l.house_rules,'')))=0)`;
 }
