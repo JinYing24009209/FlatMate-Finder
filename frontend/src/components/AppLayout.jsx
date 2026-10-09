@@ -4,6 +4,7 @@ import { getAccountPages } from '../utils/accountNavigation';
 
 const iconPaths = {
   Dashboard: <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
+  'Admin home': <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
   'Browse listings': (
     <>
       <circle cx="10.5" cy="10.5" r="5.5" />
@@ -51,7 +52,7 @@ const iconPaths = {
     </>
   ),
   'Create listing': <path d="M12 5v14M5 12h14" />,
-  'Admin dashboard': (
+  'Platform management': (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1" />
       <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -79,7 +80,7 @@ function NavIcon({ name }) {
 //   'My profile',
 // ];
 // const advertiser = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
-// const admin = ['Dashboard', 'Admin dashboard'];
+// Admin navigation is sourced from accountNavigation.js.
 export default function AppLayout({
   user,
   page,
