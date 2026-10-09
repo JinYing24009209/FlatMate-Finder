@@ -158,7 +158,7 @@ test('embedding errors fall back cleanly instead of breaking smart search', asyn
   }
 });
 
-test('Gemini listing recommendation receives bounded saved preferences without saved identities', async () => {
+test('Gemini listing recommendation excludes favourites even if supplied by an older caller', async () => {
   const originalFetch = global.fetch;
   const originalKey = process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY = 'test-key';
@@ -173,8 +173,8 @@ test('Gemini listing recommendation receives bounded saved preferences without s
     const result = await ai.enhancedListingScores({budget_max:250}, [{rent:220,city:'Auckland'}], {savedListings:saved});
     assert.equal(result[0].mode,'gemini');
     const payload = JSON.parse(prompt.slice(prompt.indexOf('{"preferences"')));
-    assert.equal(payload.recent_saved_listings.length,12);
-    assert.deepEqual(Object.keys(payload.recent_saved_listings[0]).sort(),['city','rent','room_type','suburb']);
+    assert.equal(payload.recent_saved_listings,undefined);
+    assert.deepEqual(Object.keys(payload).sort(),['listings','preferences']);
     assert.doesNotMatch(prompt,/hidden@example|Hidden street|12345/);
     assert.match(prompt,/No search history is supplied/);
   } finally {
