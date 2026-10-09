@@ -1,15 +1,14 @@
+const v = require('./validation');
 function listingFilters(query = {}) {
-  const number = (value, fallback) => {
-    if (value == null || String(value).trim() === '') return fallback;
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed < 0)
-      throw new Error('Rent must be a non-negative number.');
-    return parsed;
-  };
-  const minRent = number(query.minRent, 0);
-  const maxRent = number(query.maxRent, null);
+  const minRent = v.number(query.minRent, 'Minimum rent', 0);
+  const maxRent = v.number(query.maxRent, 'Maximum rent', null);
   if (maxRent !== null && minRent > maxRent)
-    throw new Error('Minimum rent cannot exceed maximum rent.');
+    throw v.invalid('Minimum rent cannot exceed maximum rent.');
   return { minRent, maxRent };
 }
-module.exports = { listingFilters };
+function searchFilters(query = {}) {
+  return { ...listingFilters(query), q: v.text(query.q, 'Search text', 1000),
+    city: v.text(query.city, 'City', 120), roomType: v.roomType(query.roomType),
+    availableFrom: v.date(query.availableFrom, 'Available date') };
+}
+module.exports = { listingFilters, searchFilters };
