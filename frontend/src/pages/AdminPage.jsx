@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
-import CategoryManager from '../components/CategoryManager';
 import { formatDateTime } from '../utils/dates';
 import '../styles/community.css';
 import { api } from '../services/api';
-export default function AdminPage() {
+export default function AdminPage({setPage,setSelected}) {
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
@@ -134,13 +133,12 @@ export default function AdminPage() {
       )}
       {notice && <p className="notice">{notice}</p>}
       <div className="tabs admin-tabs">
-        {['reports', 'users', 'listings', 'categories', 'access'].map((x) => (
+        {['reports', 'users', 'listings', 'access'].map((x) => (
           <button key={x} className={tab === x ? 'selected' : ''} onClick={() => setTab(x)}>
-            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', categories: 'Transport & facilities', access: 'Staff access' }[x]}
+            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', access: 'Staff access' }[x]}
           </button>
         ))}
       </div>
-      {tab === 'categories' && <CategoryManager />}
       {tab === 'reports' && (
         <section>
           <h2>Safety & community reports</h2>
@@ -153,6 +151,12 @@ export default function AdminPage() {
                     {report.reporter_name} · {report.target_type} · {report.listing_title || report.reported_user_name || report.target_snapshot?.title || report.target_snapshot?.name || 'Removed target'}
                   </p>
                   <p className="muted">{report.description}</p>
+                  <button className="outline" onClick={()=>{
+                    const isListing=report.target_type==='listing';
+                    const id=isListing?report.listing_id:report.reported_user_id;
+                    if(!id){setNotice('This target was deleted. Its report snapshot is retained.');return;}
+                    setSelected({targetType:isListing?'listing':'user',id});setPage('Report target');
+                  }}>View reported {report.target_type==='listing'?'listing':'user'}</button>
                   {report.evidence?.body && <blockquote className="report-evidence">{report.evidence.body}</blockquote>}
                   {report.evidence?.sent_at && <p className="muted">Message #{report.evidence.message_id} · conversation #{report.evidence.conversation_id} · {formatDateTime(report.evidence.sent_at)}</p>}
                   {report.evidence?.note && <p>Evidence note: {report.evidence.note}</p>}
