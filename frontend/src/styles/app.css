@@ -11,6 +11,46 @@
   margin-bottom: 24px;
   overflow: hidden;
 }
+
+/* Availability, admin outcome diagrams and coursework-safe payment flow */
+.listing-unavailable { opacity: .82; }
+.availability-warning { padding: 12px 14px; border-left: 4px solid #bd6b28; border-radius: 8px; background: #fff1df; color: #713b12; font-weight: 700; }
+.detail-card address { font-style: normal; }
+.payment-button { margin-top: 10px; }
+.analytics-panel { margin: 24px 0 30px; padding: 24px; border-radius: 20px; background: #f7fbf9; border: 1px solid #d9e8e3; }
+.analytics-heading { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.analytics-heading h2 { margin: 5px 0; }
+.range-buttons { display: flex; gap: 6px; }
+.range-buttons button { padding: 8px 11px; border: 1px solid #a8c8bf; border-radius: 9px; background: white; color: #155f52; cursor: pointer; }
+.range-buttons .selected { background: #147d6c; color: white; }
+.analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 20px; }
+.chart-card { min-width: 0; padding: 18px; border-radius: 15px; background: white; box-shadow: 0 8px 24px rgba(20,64,55,.07); }
+.chart-card h3 { margin-top: 0; }
+.chart-wide { grid-column: 1 / -1; }
+.vertical-chart { display: flex; align-items: end; gap: 3px; height: 180px; padding-top: 20px; border-bottom: 1px solid #b8cec8; }
+.vertical-bar-wrap { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: end; align-items: center; min-width: 3px; }
+.vertical-bar-wrap span { font-size: 10px; }
+.vertical-bar-wrap i { display: block; width: 70%; min-height: 3px; border-radius: 5px 5px 0 0; background: linear-gradient(#39a892,#147d6c); }
+.horizontal-chart { display: grid; gap: 12px; }
+.horizontal-chart > div { display: grid; grid-template-columns: 130px minmax(10px,1fr) 28px; gap: 8px; align-items: center; text-transform: capitalize; }
+.horizontal-chart i { height: 14px; min-width: 3px; border-radius: 20px; background: #2f9c87; }
+.needs-chart i { background: #628ec0; }
+.outcome-chart i { background: #d09345; }
+.engagement-card { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.engagement-card h3 { grid-column: 1/-1; }
+.engagement-card div { padding: 14px; border-radius: 10px; background: #edf7f4; text-align: center; }
+.engagement-card b, .engagement-card span { display: block; }
+.engagement-card b { font-size: 28px; color: #126a5b; }
+.payment-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(260px,.7fr); gap: 24px; max-width: 1000px; }
+.payment-card,.payment-summary-card { padding: 28px; border: 1px solid #d7e5e1; border-radius: 18px; background: white; box-shadow: 0 12px 34px rgba(20,64,55,.08); }
+.payment-total { display: flex; justify-content: space-between; gap: 20px; margin: 22px 0; padding: 20px 0; border-block: 1px solid #d7e5e1; }
+.payment-total strong { font-size: 24px; }
+.demo-payment-notice { margin-bottom: 20px; padding: 14px; border-radius: 10px; background: #fff5d8; color: #654a00; }
+.payment-consent { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0; }
+.payment-consent input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 4px; }
+.payment-success { margin: 20px 0; padding: 18px; border-radius: 12px; background: #def4eb; color: #12614f; }
+.payment-summary-card p { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 12px; border-bottom: 1px solid #e4eeeb; }
+@media (max-width: 780px) { .analytics-grid,.payment-layout { grid-template-columns: 1fr; } .analytics-heading { flex-direction: column; } .engagement-card { grid-template-columns: 1fr; } .engagement-card h3 { grid-column: auto; } }
 .dashboard-eyebrow {
   font-size: 12px;
   font-weight: 800;
@@ -1293,8 +1333,21 @@
   margin-bottom: 20px;
 }
 .form-section h2 {
-  margin-top: 0;
+  margin: 0 0 24px;
+  font-size: clamp(24px, 2vw, 30px);
+  font-weight: 800;
+  line-height: 1.25;
+  color: #123e36;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #d9eae4;
 }
+.form-section > label + .form-grid { margin-top: 26px; }
+.form-section .form-grid { align-items: start; row-gap: 24px; }
+.form-section .form-grid > label { align-content: start; }
+.date-input-ymd { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 6px; min-width: 0; }
+.date-input-ymd select { min-width: 0; padding: 12px 6px; font-variant-numeric: tabular-nums; }
+.search-fields .date-filter { grid-column: span 2; }
+@media (max-width: 560px) { .search-fields .date-filter { grid-column: 1 / -1; } }
 .sticky-actions {
   position: sticky;
   bottom: 16px;

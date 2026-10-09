@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
+import { formatDate } from '../utils/dates';
 export default function DashboardPage({ user, setPage }) {
   const [notifications, setNotifications] = useState([]);
   const [profile, setProfile] = useState(null);
@@ -82,15 +83,18 @@ export default function DashboardPage({ user, setPage }) {
         ]
       : [
           [
-            'Admin dashboard',
-            'Platform overview',
-            'Review users, listings and platform activity.',
+            'Platform management',
+            'Open platform management',
+            'Review live outcomes, users, listings, reports and staff access.',
             '⌂',
           ],
         ];
   return (
     <main className="content dashboard-page">
-      <PageHeader title="Dashboard" subtitle="A little closer to your next home." />
+      <PageHeader
+        title={user.role === 'admin' ? 'Administrator home' : 'Dashboard'}
+        subtitle={user.role === 'admin' ? 'Open live outcomes and management tools.' : 'A little closer to your next home.'}
+      />
       <section className="dashboard-welcome">
         <div>
           <span className="dashboard-eyebrow">YOUR NEXT CHAPTER</span>
@@ -165,7 +169,7 @@ export default function DashboardPage({ user, setPage }) {
                     <b>{item.type.replaceAll('_', ' ')}</b>
                     <p>{item.message}</p>
                   </div>
-                  <small>{new Date(item.created_at).toLocaleDateString()}</small>
+                  <small>{formatDate(item.created_at)}</small>
                 </button>
               ))}
             </div>

@@ -1,33 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 export default function AdminPage() {
-  const [stats, setStats] = useState({});
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
   const [code, setCode] = useState('');
   const [notice, setNotice] = useState('');
   const [tab, setTab] = useState('reports');
-  const load = async () => {
-    try {
-      const [s, r, u, l] = await Promise.all([
-        api('/admin/stats'),
+  const [days, setDays] = useState(30);
+  const [analytics, setAnalytics] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const load = useCallback(async () => {
+      const results = await Promise.allSettled([
         api('/admin/reports'),
         api('/admin/users'),
         api('/admin/listings'),
+        api(`/admin/analytics?days=${days}`),
       ]);
-      setStats(s.stats);
-      setReports(r.reports);
-      setUsers(u.users);
-      setListings(l.listings);
-    } catch (e) {
-      setNotice(e.message);
-    }
-  };
+      const setters = [
+        (data) => setReports(data.reports),
+        (data) => setUsers(data.users),
+        (data) => setListings(data.listings),
+        setAnalytics,
+      ];
+      const labels = ['Safety reports', 'User accounts', 'Listing status', 'Analytics'];
+      const errors = [];
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') setters[index](result.value);
+        else errors.push(`${labels[index]}: ${result.reason.message}`);
+      });
+      setLoadError(errors.join(' · '));
+  }, [days]);
   useEffect(() => {
     load();
-  }, []);
+    const timer = window.setInterval(load, 30000);
+    return () => window.clearInterval(timer);
+  }, [load]);
   const invite = async (e) => {
     e.preventDefault();
     try {
@@ -57,22 +66,69 @@ export default function AdminPage() {
   return (
     <main className="content">
       <PageHeader
-        title="Platform control room"
-        subtitle="Moderate reports, accounts and listing availability from one place."
+        title="Platform management"
+        subtitle="Track real platform outcomes and manage reports, people, homes and staff access."
       />
-      <div className="stats">
-        {Object.entries(stats).map(([key, value]) => (
-          <article key={key}>
-            <b>{value}</b>
-            <span>{key.replaceAll('_', ' ')}</span>
-          </article>
-        ))}
-      </div>
+      {loadError && <p className="notice" role="alert">{loadError}</p>}
+      {analytics && (
+        <section className="analytics-panel" aria-label="Live platform analytics">
+          <div className="analytics-heading">
+            <div>
+              <span className="eyebrow">LIVE DATABASE RESULTS</span>
+              <h2>Platform outcomes</h2>
+              <p className="muted">{analytics.range.from} to {analytics.range.to} · refreshed {new Date(analytics.generated_at).toLocaleTimeString()}</p>
+            </div>
+            <div className="range-buttons" aria-label="Analytics date range">
+              {[7, 30, 90].map((value) => (
+                <button key={value} className={days === value ? 'selected' : ''} onClick={() => setDays(value)}>{value} days</button>
+              ))}
+            </div>
+          </div>
+          <div className="analytics-grid">
+            <article className="chart-card chart-wide">
+              <h3>New listings by day</h3>
+              <p className="muted">Publication activity in the selected period</p>
+              <div className="vertical-chart">
+                {analytics.listings_by_day.map((item) => {
+                  const max = Math.max(1, ...analytics.listings_by_day.map((x) => x.listings));
+                  return <div className="vertical-bar-wrap" key={item.day} title={`${item.day}: ${item.listings} listings`}>
+                    <span>{item.listings || ''}</span><i style={{ height: `${Math.max(3, item.listings / max * 100)}%` }} />
+                  </div>;
+                })}
+              </div>
+            </article>
+            <article className="chart-card">
+              <h3>Listing availability</h3>
+              <div className="horizontal-chart">
+                {analytics.listing_statuses.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.listing_statuses.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
+              </div>
+            </article>
+            <article className="chart-card">
+              <h3>What students need</h3>
+              <div className="horizontal-chart needs-chart">
+                {analytics.student_needs.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.student_needs.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
+              </div>
+            </article>
+            <article className="chart-card">
+              <h3>Enquiry outcomes</h3>
+              <div className="horizontal-chart outcome-chart">
+                {analytics.enquiry_outcomes.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.enquiry_outcomes.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
+              </div>
+            </article>
+            <article className="chart-card engagement-card">
+              <h3>Flatmate engagement</h3>
+              <div><b>{analytics.flatmate_engagement.visible_seekers}</b><span>visible seekers</span></div>
+              <div><b>{analytics.flatmate_engagement.conversations}</b><span>conversations started</span></div>
+              <div><b>{analytics.flatmate_engagement.messages}</b><span>messages exchanged</span></div>
+            </article>
+          </div>
+        </section>
+      )}
       {notice && <p className="notice">{notice}</p>}
       <div className="tabs admin-tabs">
         {['reports', 'users', 'listings', 'access'].map((x) => (
           <button key={x} className={tab === x ? 'selected' : ''} onClick={() => setTab(x)}>
-            {x}
+            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', access: 'Staff access' }[x]}
           </button>
         ))}
       </div>

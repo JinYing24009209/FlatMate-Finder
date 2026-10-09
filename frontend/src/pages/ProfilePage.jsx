@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 import ProfilePhoto from '../components/ProfilePhoto';
+import DateInput from '../components/DateInput';
 export default function ProfilePage({ user }) {
   const [account, setAccount] = useState({ full_name: '', email: '', phone: '' });
   const [profile, setProfile] = useState({
@@ -62,11 +63,15 @@ export default function ProfilePage({ user }) {
   const field = (name, label, type = 'text') => (
     <label>
       {label}
-      <input
+      {type === 'date' ? <DateInput
+        aria-label={label}
+        value={profile[name] || ''}
+        onChange={(e) => setProfile({ ...profile, [name]: e.target.value })}
+      /> : <input
         type={type}
         value={profile[name] || ''}
         onChange={(e) => setProfile({ ...profile, [name]: e.target.value })}
-      />
+      />}
     </label>
   );
   return (
