@@ -211,9 +211,31 @@ function getAiProviderStatus() {
 }
 
 async function fetchWithRetry(url, options) {
+  const { acquire } = require('./aiBudget');
+  const timeout = AbortSignal.timeout(12000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  const timed = async (work) => {
+    signal.throwIfAborted();
+    let onAbort;
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try { return await Promise.race([work(), aborted]); }
+    finally { signal.removeEventListener('abort', onAbort); }
+  };
   let response;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    response = await fetch(url, options);
+    signal.throwIfAborted();
+    const release = acquire();
+    try {
+      response = await timed(() => fetch(url, { ...options, signal }));
+      if (response.ok) {
+        const data = await timed(() => response.json());
+        return { ok: true, status: response.status, json: async () => data };
+      }
+      await response.body?.cancel();
+    } finally { release(); }
     if (response.ok || ![429, 500, 502, 503, 504].includes(response.status)) return response;
     if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
   }
@@ -223,6 +245,7 @@ async function fetchWithRetry(url, options) {
 async function generateGeminiJson(prompt, signal) {
   const status = getAiProviderStatus();
   if (status.mode !== 'gemini' || !status.configured) return null;
+  if (typeof prompt !== 'string' || prompt.length > 40000) throw new Error('AI prompt exceeds the input limit.');
   const response = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${status.textModel}:generateContent`,
     {
@@ -236,6 +259,7 @@ async function generateGeminiJson(prompt, signal) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.1,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
         },
       }),
@@ -293,15 +317,19 @@ async function enhancedNaturalLanguageSearch(input = '') {
       ].join('\n')
     );
     if (result && Array.isArray(result.lifestyle)) {
+      const v = require('./validation');
+      const minimum = v.number(result.minRent, 'Minimum rent');
+      const maximum = v.number(result.maxRent, 'Maximum rent');
+      if (minimum != null && maximum != null && minimum > maximum) throw new Error('Invalid inferred price range.');
       return {
-        minRent: Number.isFinite(Number(result.minRent)) ? Number(result.minRent) : null,
-        maxRent: Number.isFinite(Number(result.maxRent)) ? Number(result.maxRent) : null,
+        minRent: minimum,
+        maxRent: maximum,
         city: String(result.city || '').slice(0, 120),
         quiet: Boolean(result.quiet),
         furnished: Boolean(result.furnished),
         transport: String(result.transport || '').slice(0, 80),
-        roomType: String(result.roomType || '').slice(0, 80),
-        lifestyle: result.lifestyle.slice(0, 10).map(String),
+        roomType: v.roomType(result.roomType),
+        lifestyle: v.strings(result.lifestyle, 'Lifestyle', 10, 80),
         mode: 'gemini',
       };
     }
