@@ -3,12 +3,15 @@ const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const { notify } = require('../services/notificationService');
+const v = require('../services/validation');
+const { transaction } = require('../services/transaction');
+const { aiRateLimit } = require('../middleware/aiRateLimit');
 const { storeListingEmbedding, enhancedSafetyCheck } = require('../services/aiService');
 const select = `
   SELECT l.*, u.full_name advertiser_name, pr.advertiser_bio,
     CASE WHEN pr.display_phone THEN u.phone ELSE NULL END advertiser_phone,
     COALESCE(
-      json_agg(DISTINCT p.photo_url) FILTER (WHERE p.photo_url IS NOT NULL),
+      json_agg(p.photo_url ORDER BY p.display_order, p.photo_id) FILTER (WHERE p.photo_url IS NOT NULL),
       '[]'
     ) photos
   FROM listing l
@@ -43,16 +46,15 @@ const listingValues = (d, owner) => [
   d.available_from,
   d.status || 'available',
 ];
-const { listingFilters } = require('../services/listingFilters');
-const validRoomTypes = ['Single room', 'Double room', 'Shared room', 'Studio'];
+const { searchFilters } = require('../services/listingFilters');
 
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const { q = '', city = '', roomType = '', availableFrom = '' } = req.query;
+    const { q, city, roomType, availableFrom } = searchFilters(req.query);
     let rentFilters;
     try {
-      rentFilters = listingFilters(req.query);
+      rentFilters = searchFilters(req.query);
     } catch (error) {
       return fail(res, 400, error.message);
     }
@@ -102,11 +104,9 @@ router.post(
   '/',
   auth,
   allow('advertiser', 'admin'),
+  aiRateLimit,
   asyncRoute(async (req, res) => {
-    const d = req.body;
-    for (const key of ['title', 'rent', 'address', 'city', 'room_type', 'available_from'])
-      if (!d[key]) return fail(res, 400, `${key} is required.`);
-    if (!validRoomTypes.includes(d.room_type)) return fail(res, 400, 'Invalid room type.');
+    const d = v.listing(req.body);
     const sql = `
       INSERT INTO listing (
         advertiser_id, title, description, rent, bond, address, suburb, city,
@@ -157,6 +157,7 @@ router.put(
   '/:id',
   auth,
   allow('advertiser', 'admin'),
+  aiRateLimit,
   asyncRoute(async (req, res) => {
     const {
       rows: [old],
@@ -164,8 +165,8 @@ router.put(
     if (!old) return fail(res, 404, 'Listing not found.');
     if (req.user.role !== 'admin' && old.advertiser_id !== req.user.userId)
       return fail(res, 403, 'You can only edit your own listings.');
-    const d = req.body;
-    if (!validRoomTypes.includes(d.room_type)) return fail(res, 400, 'Invalid room type.');
+    const d = v.listing(req.body);
+    const screening = await enhancedSafetyCheck(d);
     const sql = `
       UPDATE listing SET
         title = $1,
@@ -182,7 +183,7 @@ router.put(
         utilities = $12::jsonb,
         transport_options = $13::jsonb,
         available_from = $14,
-        status = $15
+        status = $15, updated_at = now()
       WHERE listing_id = $16
       RETURNING *
     `;
@@ -195,7 +196,18 @@ router.put(
       ({
         rows: [listing],
       } = await client.query(sql, values));
+      if (!listing) throw v.invalid('Listing not found.', 404);
       if (Array.isArray(d.photos)) await savePhotos(client, old.listing_id, d.photos);
+      // 房源更新已锁定该行，避免并发编辑产生重复待处理举报。 | The listing row lock serializes automatic report updates.
+      const risk = screening.safe
+        ? 'Latest screening found no flags. Human review of the earlier report is still pending.'
+        : screening.flags.join(' ');
+      const pending = await client.query(`UPDATE report SET description=$2
+        WHERE listing_id=$1 AND reason='AI safety screening' AND status='pending' RETURNING report_id`,
+        [old.listing_id, risk]);
+      if (!screening.safe && !pending.rowCount) await client.query(`INSERT INTO report
+        (reporter_id,listing_id,reason,description,status) VALUES($1,$2,'AI safety screening',$3,'pending')`,
+        [req.user.userId, old.listing_id, risk]);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -206,6 +218,7 @@ router.put(
     storeListingEmbedding(pool, listing).catch(console.error);
     res.json({
       message: 'Listing updated.',
+      screening,
       listing: { ...listing, photos: Array.isArray(d.photos) ? d.photos.slice(0, 5) : undefined },
     });
   })
@@ -254,21 +267,22 @@ router.post(
   auth,
   allow('student'),
   asyncRoute(async (req, res) => {
-    const message = req.body.message?.trim();
-    if (!message) return fail(res, 400, 'A message is required.');
+    const message = v.text(req.body.message, 'Message', 3000, true);
+    const enquiry = await transaction(async (client) => {
     const {
       rows: [listing],
-    } = await pool.query('SELECT advertiser_id,title FROM listing WHERE listing_id=$1', [
+    } = await client.query('SELECT advertiser_id,title,status FROM listing WHERE listing_id=$1 FOR UPDATE', [
       req.params.id,
     ]);
-    if (!listing) return fail(res, 404, 'Listing not found.');
+    if (!listing) throw v.invalid('Listing not found.', 404);
+    if (listing.status !== 'available') throw v.invalid(`This listing is ${listing.status}; new enquiries are not allowed.`, 409);
     const {
       rows: [enquiry],
-    } = await pool.query(
+    } = await client.query(
       'INSERT INTO enquiry(listing_id,student_id,message) VALUES($1,$2,$3) RETURNING *',
       [req.params.id, req.user.userId, message]
     );
-    await pool.query('INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES ($1,$2,$3)', [
+    await client.query('INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES ($1,$2,$3)', [
       enquiry.enquiry_id,
       req.user.userId,
       message,
@@ -278,8 +292,11 @@ router.post(
       'enquiry',
       `New enquiry about “${listing.title}”.`,
       'enquiry',
-      enquiry.enquiry_id
+      enquiry.enquiry_id,
+      client
     );
+      return enquiry;
+    });
     res.status(201).json({ message: 'Enquiry sent.', enquiry });
   })
 );
@@ -287,8 +304,8 @@ router.post(
   '/:id/report',
   auth,
   asyncRoute(async (req, res) => {
-    const reason = req.body.reason?.trim();
-    const description = req.body.description?.trim();
+    const reason = v.text(req.body.reason, 'Reason', 160, true);
+    const description = v.text(req.body.description, 'Description', 3000, true);
     if (!reason || !description) return fail(res, 400, 'A reason and description are required.');
     const {
       rows: [listing],

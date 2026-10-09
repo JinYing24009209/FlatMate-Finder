@@ -136,7 +136,7 @@ router.patch(
       return fail(res, 400, 'Invalid listing status.');
     const {
       rows: [listing],
-    } = await pool.query('UPDATE listing SET status=$1 WHERE listing_id=$2 RETURNING *', [
+    } = await pool.query('UPDATE listing SET status=$1,updated_at=now() WHERE listing_id=$2 RETURNING *', [
       req.body.status,
       req.params.id,
     ]);
@@ -152,9 +152,14 @@ router.patch(
     const {
       rows: [report],
     } = await pool.query(
-      'UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now() WHERE report_id=$3 RETURNING *',
+      "UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now() WHERE report_id=$3 AND status='pending' RETURNING *",
       [req.body.status, req.user.userId, req.params.id]
     );
+    if (!report) {
+      const existing = await pool.query('SELECT 1 FROM report WHERE report_id=$1', [req.params.id]);
+      return fail(res, existing.rowCount ? 409 : 404, existing.rowCount
+        ? 'This report has already been processed; its original review is preserved.' : 'Report not found.');
+    }
     res.json({ message: 'Report reviewed.', report });
   })
 );
