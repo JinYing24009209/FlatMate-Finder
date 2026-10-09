@@ -25,6 +25,7 @@ export default function ListingFormPage({ editing, setPage }) {
   const initial = editing
     ? {
         ...editing,
+        available_from: String(editing.available_from || '').slice(0, 10),
         bedrooms: 1,
         photos: editing.photos || [],
         transport_options: editing.transport_options || [],
