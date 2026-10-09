@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDate, formatDateTime } from '../utils/dates';
 import PageHeader from '../components/PageHeader';
+import ReportForm from '../components/ReportForm';
 import { api } from '../services/api';
 
 function FlatmateChat({ conversation, user, onRead }) {
@@ -86,6 +87,7 @@ function FlatmateChat({ conversation, user, onRead }) {
               <small>{m.sender_name}</small>
               <p>{m.body}</p>
               <small>{formatDateTime(m.created_at)}</small>
+              {m.sender_id !== user.user_id && <ReportForm userId={m.sender_id} conversationId={id} messageId={m.message_id} label="Report this message" />}
             </div>
           ))
         )}
