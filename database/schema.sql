@@ -102,6 +102,29 @@ CREATE TABLE IF NOT EXISTS enquiry_message (
   read_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS rental_payment (
+  payment_id SERIAL PRIMARY KEY,
+  listing_id INTEGER NOT NULL REFERENCES listing(listing_id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  currency VARCHAR(3) NOT NULL DEFAULT 'NZD',
+  purpose VARCHAR(40) NOT NULL DEFAULT 'holding_deposit'
+    CHECK (purpose IN ('holding_deposit', 'bond')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'succeeded', 'failed', 'cancelled')),
+  provider VARCHAR(40) NOT NULL DEFAULT 'coursework-demo',
+  provider_reference VARCHAR(160),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS rental_payment_student_idx
+  ON rental_payment(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS rental_payment_listing_idx
+  ON rental_payment(listing_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS rental_payment_one_pending_idx
+  ON rental_payment(student_id, listing_id) WHERE status='pending';
+
 CREATE TABLE IF NOT EXISTS notification (
   notification_id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
