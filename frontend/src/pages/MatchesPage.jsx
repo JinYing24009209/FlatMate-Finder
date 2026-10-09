@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import FlatmateCard from '../components/FlatmateCard';
+import DateInput from '../components/DateInput';
 import { api } from '../services/api';
-const empty = { q: '', location: '', maxBudget: '' };
+const empty = { q: '', location: '', maxBudget: '',studyHabits:'',lifestyle:'',moveInFrom:'',moveInTo:'' };
 export default function MatchesPage({ savedOnly = false, setPage, setSelected }) {
   const [matches, setMatches] = useState([]);
   const [filters, setFilters] = useState(empty);
@@ -94,6 +95,12 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
               value={filters.maxBudget}
               onChange={(e) => setFilters({ ...filters, maxBudget: e.target.value })}
             />
+            <input aria-label="Study habits" placeholder="Study routine, e.g. morning" maxLength={160} value={filters.studyHabits}
+              onChange={e=>setFilters({...filters,studyHabits:e.target.value})}/>
+            <input aria-label="Lifestyle tags" placeholder="Lifestyle tags, e.g. tidy, quiet" maxLength={800} value={filters.lifestyle}
+              onChange={e=>setFilters({...filters,lifestyle:e.target.value})}/>
+            <label>Move-in from<DateInput value={filters.moveInFrom} onChange={e=>setFilters({...filters,moveInFrom:e.target.value})}/></label>
+            <label>Move-in by<DateInput value={filters.moveInTo} onChange={e=>setFilters({...filters,moveInTo:e.target.value})}/></label>
             <button className="primary" disabled={loading}>
               {loading ? 'Searching…' : 'Search flatmates'}
             </button>
@@ -110,7 +117,7 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
           </form>
           <p className="search-hint">
             ✦ Compatibility scores compare shared preferences. Complete your profile for more
-            meaningful results.
+            meaningful results. Study routine matches the entered phrase; every lifestyle tag must match a profile tag (case-insensitive). Move-in dates include both endpoints; profiles without a date are excluded when a date filter is set. Maximum budget compares the profile's minimum budget.
           </p>
         </section>
       )}
