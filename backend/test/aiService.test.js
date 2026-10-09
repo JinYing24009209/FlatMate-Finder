@@ -72,6 +72,19 @@ test('summary highlights core facts', () => {
     /Rent: \$230\/week/
   );
 });
+test('summary displays an available date without an ISO timestamp', () => {
+  const result = ai.summariseListing({
+    description: 'Sunny room.',
+    available_from: '2026-08-31T12:00:00.000Z',
+  });
+  assert.match(result, /Available: 2026-08-31/);
+  assert.doesNotMatch(result, /T12:00:00/);
+});
+test('smart search with no natural-language text is identified as filters only', async () => {
+  const result = await ai.enhancedNaturalLanguageSearch('');
+  assert.equal(result.mode, 'filters-only');
+  assert.equal(result.roomType, '');
+});
 test('safety screening explains suspicious payment language', () => {
   const result = ai.safetyCheck({
     description: 'Pay before viewing by crypto and send deposit urgently.',
