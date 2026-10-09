@@ -2,10 +2,11 @@ const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
+const {notifyListingChange}=require('../services/notificationService');
 
 const paymentSelect = `
   SELECT p.*, l.title listing_title, l.address, l.suburb, l.city,
-    l.rent, l.status listing_status, u.full_name advertiser_name
+    l.rent, l.bond, l.available_from, l.status listing_status, u.full_name advertiser_name
   FROM rental_payment p
   JOIN listing l ON l.listing_id = p.listing_id
   JOIN users u ON u.user_id = l.advertiser_id
@@ -75,11 +76,12 @@ router.post(
          WHERE payment_id=$2 RETURNING *`,
         [reference, payment.payment_id]
       );
-      await client.query(
+      const {rows:[reserved]}=await client.query(
         `UPDATE listing SET status='shortlisted', updated_at=now()
-         WHERE listing_id=$1 AND status='available'`,
+         WHERE listing_id=$1 AND status='available' RETURNING *`,
         [payment.listing_id]
       );
+      await notifyListingChange(client,{...payment,title:payment.listing_title,status:payment.listing_status},reserved);
       const { rows: [owner] } = await client.query(
         'SELECT advertiser_id FROM listing WHERE listing_id=$1',
         [payment.listing_id]

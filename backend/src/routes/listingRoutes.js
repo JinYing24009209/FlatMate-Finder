@@ -2,13 +2,16 @@ const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
-const { notify } = require('../services/notificationService');
+const { notify, notifyListingChange } = require('../services/notificationService');
+const { createReport } = require('../services/reportService');
+const { saveCategories } = require('../services/categoryService');
 const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
 const { storeListingEmbedding, enhancedSafetyCheck } = require('../services/aiService');
 const select = `
-  SELECT l.*, u.full_name advertiser_name, pr.advertiser_bio,
+  SELECT l.*, ARRAY(SELECT category_id FROM listing_category_link WHERE listing_id=l.listing_id ORDER BY category_id) category_ids,
+    u.full_name advertiser_name, pr.advertiser_bio,
     CASE WHEN pr.display_phone THEN u.phone ELSE NULL END advertiser_phone,
     COALESCE(
       json_agg(p.photo_url ORDER BY p.display_order, p.photo_id) FILTER (WHERE p.photo_url IS NOT NULL),
@@ -46,12 +49,12 @@ const listingValues = (d, owner) => [
   d.available_from,
   d.status || 'available',
 ];
-const { searchFilters } = require('../services/listingFilters');
+const { searchFilters,extraListingConditions } = require('../services/listingFilters');
 
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const { q, city, roomType, availableFrom } = searchFilters(req.query);
+    const { q, city, roomType, availableFrom,transportIds,utilityIds,lifestyle } = searchFilters(req.query);
     let rentFilters;
     try {
       rentFilters = searchFilters(req.query);
@@ -65,6 +68,7 @@ router.get(
         AND l.rent >= $3 AND ($4::numeric IS NULL OR l.rent <= $4)
         AND ($5 = '' OR l.room_type = $5)
         AND ($6::date IS NULL OR l.available_from <= $6::date)
+        ${extraListingConditions(7)}
       ${grouped}
       ORDER BY l.created_at DESC`;
     const { rows } = await pool.query(sql, [
@@ -74,6 +78,7 @@ router.get(
       rentFilters.maxRent,
       roomType,
       availableFrom || null,
+      transportIds,utilityIds,lifestyle,
     ]);
     res.json({ listings: rows });
   })
@@ -128,14 +133,11 @@ router.post(
         rows: [listing],
       } = await client.query(sql, listingValues(d, req.user.userId)));
       await savePhotos(client, listing.listing_id, d.photos);
+      listing = await saveCategories(client, listing.listing_id, d);
       if (!screening.safe)
-        await client.query(
-          `
-            INSERT INTO report (reporter_id, listing_id, reason, description, status)
-            VALUES ($1, $2, 'AI safety screening', $3, 'pending')
-          `,
-          [req.user.userId, listing.listing_id, screening.flags.join(' ')]
-        );
+        await createReport(client,{reporterId:req.user.userId,listingId:listing.listing_id,
+          userId:listing.advertiser_id,reason:'AI safety screening',description:screening.flags.join(' '),
+          snapshot:{listing_id:listing.listing_id,title:listing.title}});
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -193,11 +195,15 @@ router.put(
     let listing;
     try {
       await client.query('BEGIN');
+      const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[old.listing_id]);
+      if(!before)throw v.invalid('Listing not found.',404);
       ({
         rows: [listing],
       } = await client.query(sql, values));
       if (!listing) throw v.invalid('Listing not found.', 404);
       if (Array.isArray(d.photos)) await savePhotos(client, old.listing_id, d.photos);
+      listing = await saveCategories(client, old.listing_id, d);
+      await notifyListingChange(client,before,listing);
       // 房源更新已锁定该行，避免并发编辑产生重复待处理举报。 | The listing row lock serializes automatic report updates.
       const risk = screening.safe
         ? 'Latest screening found no flags. Human review of the earlier report is still pending.'
@@ -205,9 +211,9 @@ router.put(
       const pending = await client.query(`UPDATE report SET description=$2
         WHERE listing_id=$1 AND reason='AI safety screening' AND status='pending' RETURNING report_id`,
         [old.listing_id, risk]);
-      if (!screening.safe && !pending.rowCount) await client.query(`INSERT INTO report
-        (reporter_id,listing_id,reason,description,status) VALUES($1,$2,'AI safety screening',$3,'pending')`,
-        [req.user.userId, old.listing_id, risk]);
+      if (!screening.safe && !pending.rowCount) await createReport(client,{reporterId:req.user.userId,
+        listingId:old.listing_id,userId:old.advertiser_id,reason:'AI safety screening',description:risk,
+        snapshot:{listing_id:old.listing_id,title:listing.title}});
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -228,13 +234,14 @@ router.delete(
   auth,
   allow('advertiser', 'admin'),
   asyncRoute(async (req, res) => {
-    const {
-      rows: [listing],
-    } = await pool.query('SELECT advertiser_id FROM listing WHERE listing_id=$1', [req.params.id]);
-    if (!listing) return fail(res, 404, 'Listing not found.');
+    await transaction(async client=>{
+    const {rows:[listing]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[req.params.id]);
+    if (!listing) throw v.invalid('Listing not found.',404);
     if (req.user.role !== 'admin' && listing.advertiser_id !== req.user.userId)
-      return fail(res, 403, 'You can only delete your own listings.');
-    await pool.query('DELETE FROM listing WHERE listing_id=$1', [req.params.id]);
+      throw v.invalid('You can only delete your own listings.',403);
+    await notifyListingChange(client,listing,null);
+    await client.query('DELETE FROM listing WHERE listing_id=$1', [req.params.id]);
+    });
     res.json({ message: 'Listing deleted.' });
   })
 );
@@ -313,10 +320,8 @@ router.post(
       req.params.id,
     ]);
     if (!listing) return fail(res, 404, 'Listing not found.');
-    await pool.query(
-      'INSERT INTO report(reporter_id,listing_id,reported_user_id,reason,description) VALUES($1,$2,$3,$4,$5)',
-      [req.user.userId, req.params.id, listing.advertiser_id, reason, description]
-    );
+    await transaction(client=>createReport(client,{reporterId:req.user.userId,listingId:req.params.id,
+      userId:listing.advertiser_id,reason,description,snapshot:{listing_id:Number(req.params.id),title:listing.title}}));
     res.status(201).json({ message: 'Report submitted for administrator review.' });
   })
 );

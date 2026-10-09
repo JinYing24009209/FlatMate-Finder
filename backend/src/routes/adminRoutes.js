@@ -2,6 +2,9 @@ const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
+const {transaction}=require('../services/transaction');
+const {notify,notifyListingChange}=require('../services/notificationService');
+const v=require('../services/validation');
 router.use(auth, allow('admin'));
 router.get(
   '/stats',
@@ -78,10 +81,11 @@ router.get(
   asyncRoute(async (_req, res) => {
     const { rows } = await pool.query(
       `
-        SELECT r.*, u.full_name reporter_name, l.title listing_title
+        SELECT r.*, u.full_name reporter_name, l.title listing_title, target.full_name reported_user_name
         FROM report r
         JOIN users u ON u.user_id = r.reporter_id
         LEFT JOIN listing l ON l.listing_id = r.listing_id
+        LEFT JOIN users target ON target.user_id = r.reported_user_id
         ORDER BY r.created_at DESC
       `
     );
@@ -134,12 +138,18 @@ router.patch(
   asyncRoute(async (req, res) => {
     if (!['available', 'shortlisted', 'filled', 'closed'].includes(req.body.status))
       return fail(res, 400, 'Invalid listing status.');
+    const listing=await transaction(async client=>{
+    const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[req.params.id]);
+    if(!before)throw v.invalid('Listing not found.',404);
     const {
       rows: [listing],
-    } = await pool.query('UPDATE listing SET status=$1,updated_at=now() WHERE listing_id=$2 RETURNING *', [
+    } = await client.query('UPDATE listing SET status=$1,updated_at=now() WHERE listing_id=$2 RETURNING *', [
       req.body.status,
       req.params.id,
     ]);
+    await notifyListingChange(client,before,listing);
+    return listing;
+    });
     if (!listing) return fail(res, 404, 'Listing not found.');
     res.json({ message: 'Listing status updated.', listing });
   })
@@ -149,17 +159,21 @@ router.patch(
   asyncRoute(async (req, res) => {
     if (!['reviewed', 'dismissed'].includes(req.body.status))
       return fail(res, 400, 'Invalid report status.');
-    const {
-      rows: [report],
-    } = await pool.query(
-      "UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now() WHERE report_id=$3 AND status='pending' RETURNING *",
-      [req.body.status, req.user.userId, req.params.id]
-    );
-    if (!report) {
-      const existing = await pool.query('SELECT 1 FROM report WHERE report_id=$1', [req.params.id]);
-      return fail(res, existing.rowCount ? 409 : 404, existing.rowCount
-        ? 'This report has already been processed; its original review is preserved.' : 'Report not found.');
-    }
+    const note=v.text(req.body.resolution_note,'Outcome explanation',1000) ||
+      (req.body.status==='dismissed'?'The report was dismissed after review.':'The report has been reviewed by an administrator.');
+    const report=await transaction(async client=>{
+      const {rows:[old]}=await client.query(
+        'SELECT * FROM report WHERE report_id=$1 FOR UPDATE',[req.params.id]);
+      if(!old)
+        throw v.invalid('Report not found.',404);
+      if(old.status!=='pending')
+        throw v.invalid('This report has already been processed; its original review is preserved.',409);
+      const {rows:[updated]}=await client.query(`UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now(),resolution_note=$4
+        WHERE report_id=$3 RETURNING *`,[req.body.status,req.user.userId,req.params.id,note]);
+      await notify(updated.reporter_id,'report_result',`Report #${updated.report_id} 
+        ${updated.status}: ${note}`.slice(0,500),'report',updated.report_id,client);
+      return updated;
+    });
     res.json({ message: 'Report reviewed.', report });
   })
 );
