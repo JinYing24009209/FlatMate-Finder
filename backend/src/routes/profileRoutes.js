@@ -3,7 +3,8 @@ const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
-  
+const v = require('../services/validation');
+ 
 //D01：读取个人资料 | D01. Read the personal profile.
 router.get(
   '/me',
@@ -24,7 +25,7 @@ router.put(
   '/me',
   auth,
   asyncRoute(async (req, res) => {
-    const p = req.body;
+    const p = v.profile(req.body);
     //检查预算是否合法 | Validate the budget range.
     if (p.budget_min && p.budget_max && Number(p.budget_min) > Number(p.budget_max))
       return fail(res, 400, 'Minimum budget cannot exceed maximum budget.');
@@ -69,8 +70,8 @@ router.put(
       rows: [profile],
     } = await pool.query(sql, [
       req.user.userId,
-      p.budget_min || null,
-      p.budget_max || null,
+      p.budget_min,
+      p.budget_max,
       p.preferred_location || null,
       JSON.stringify(p.lifestyle_tags || []),
       p.study_habits || null,
