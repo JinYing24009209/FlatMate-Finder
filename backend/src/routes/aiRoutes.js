@@ -36,11 +36,9 @@ router.get(
     const { rows } = await pool.query(
       `${select} WHERE l.status='available' GROUP BY l.listing_id,u.full_name`
     );
+    const scores = await ai.enhancedListingScores(profile, rows, { savedListings });
     const recommendations = rows
-      .map((listing) => ({
-        ...listing,
-        ai_match: ai.listingMatchScore(listing, profile, { savedListings }),
-      }))
+      .map((listing, index) => ({ ...listing, ai_match: scores[index] }))
       .sort((a, b) => b.ai_match.score - a.ai_match.score);
     res.json({
       recommendations,
@@ -53,7 +51,8 @@ router.get(
 router.get(
   '/ai/smart-search',
   asyncRoute(async (req, res) => {
-    const interpretation = ai.parseNaturalLanguageSearch(req.query.q);
+    const searchText = String(req.query.q || '').trim();
+    const interpretation = await ai.enhancedNaturalLanguageSearch(searchText);
     const requestedMinRent = Number(req.query.minRent) || null;
     const requestedMaxRent = Number(req.query.maxRent) || null;
     const minRent = requestedMinRent || interpretation.minRent;
@@ -100,7 +99,9 @@ router.get(
       availableFrom || null,
     ];
     const { rows } = await pool.query(sql, params);
-    const queryEmbedding = await ai.createEmbedding(req.query.q || '', 'RETRIEVAL_QUERY');
+    const queryEmbedding = searchText
+      ? await ai.createEmbedding(searchText, 'RETRIEVAL_QUERY')
+      : null;
     const provider = ai.getAiProviderStatus();
     const stored = queryEmbedding
       ? await pool.query('SELECT listing_id,embedding,model FROM listing_embedding')
@@ -117,11 +118,17 @@ router.get(
         if (queryEmbedding && storedVector) semanticMatches += 1;
         return {
           ...listing,
-          semantic_score:
+          semantic_score: !searchText
+            ? null
+            :
             queryEmbedding && storedVector
               ? Math.max(0, Math.round(ai.cosineSimilarity(queryEmbedding, storedVector) * 100))
-              : ai.keywordSimilarity(req.query.q, listing),
-          semantic_source: queryEmbedding && storedVector ? provider.mode : 'local',
+              : ai.keywordSimilarity(searchText, listing),
+          semantic_source: !searchText
+            ? 'filters'
+            : queryEmbedding && storedVector
+              ? provider.mode
+              : 'local',
         };
       })
       .sort((a, b) => b.semantic_score - a.semantic_score || Number(a.rent) - Number(b.rent));
@@ -135,7 +142,9 @@ router.get(
         availableFrom,
       },
       listings,
-      notice: semanticMatches
+      notice: !searchText
+        ? 'Structured filters are active; every result matches the selected room criteria.'
+        : semanticMatches
         ? `Gemini semantic ranking is active for ${semanticMatches} matching listing${
             semanticMatches === 1 ? '' : 's'
           }.`

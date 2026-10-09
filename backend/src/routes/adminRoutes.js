@@ -22,6 +22,58 @@ router.get(
   })
 );
 router.get(
+  '/analytics',
+  asyncRoute(async (req, res) => {
+    const requestedDays = Number(req.query.days);
+    const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
+    const [activity, statuses, studentNeeds, enquiries, flatmateEngagement] =
+      await Promise.all([
+        pool.query(
+          `SELECT to_char(calendar.report_date::date,'YYYY-MM-DD') AS "day",
+             count(l.listing_id)::int AS listings
+           FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day')
+             AS calendar(report_date)
+           LEFT JOIN listing l ON l.created_at::date = calendar.report_date::date
+           GROUP BY calendar.report_date ORDER BY calendar.report_date`,
+          [days]
+        ),
+        pool.query(
+          `SELECT status::text label, count(*)::int value FROM listing GROUP BY status ORDER BY status`
+        ),
+        pool.query(
+          `SELECT student_type label, count(*)::int value
+           FROM users WHERE role='student' GROUP BY student_type ORDER BY student_type`
+        ),
+        pool.query(
+          `SELECT status::text label, count(*)::int value FROM enquiry GROUP BY status ORDER BY status`
+        ),
+        pool.query(
+          `SELECT
+             (SELECT count(*)::int FROM flatmate_conversation) conversations,
+             (SELECT count(*)::int FROM flatmate_message) messages,
+             (SELECT count(*)::int FROM profiles p JOIN users u ON u.user_id=p.user_id
+               WHERE u.student_type='flatmate' AND p.visible_for_matching) visible_seekers`
+        ),
+      ]);
+    res.json({
+      range: {
+        days,
+        from: activity.rows[0]?.day,
+        to: activity.rows.at(-1)?.day,
+      },
+      listings_by_day: activity.rows,
+      listing_statuses: statuses.rows,
+      student_needs: studentNeeds.rows.map((item) => ({
+        ...item,
+        label: item.label === 'flatmate' ? 'Seeking a flatmate' : 'Seeking a room',
+      })),
+      enquiry_outcomes: enquiries.rows,
+      flatmate_engagement: flatmateEngagement.rows[0],
+      generated_at: new Date().toISOString(),
+    });
+  })
+);
+router.get(
   '/reports',
   asyncRoute(async (_req, res) => {
     const { rows } = await pool.query(
