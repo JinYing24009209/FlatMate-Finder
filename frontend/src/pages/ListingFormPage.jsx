@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import PhotoUploader from '../components/PhotoUploader';
+import DateInput from '../components/DateInput';
 import { api } from '../services/api';
 const blank = {
   title: '',
@@ -134,9 +135,9 @@ export default function ListingFormPage({ editing, setPage }) {
           </label>
           <label>
             Available from
-            <input
+            <DateInput
               name="available_from"
-              type="date"
+              aria-label="Available from"
               required
               value={String(form.available_from || '').slice(0, 10)}
               onChange={change}

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatDate, formatDateTime } from '../utils/dates';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 
@@ -43,7 +44,8 @@ function FlatmateChat({ conversation, user, onRead }) {
     };
   }, [id, user.user_id, onRead]);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'nearest' });
+    const messagesPanel = bottom.current?.parentElement;
+    if (messagesPanel) messagesPanel.scrollTop = messagesPanel.scrollHeight;
   }, [messages.length]);
   const send = async (e) => {
     e.preventDefault();
@@ -83,7 +85,7 @@ function FlatmateChat({ conversation, user, onRead }) {
             >
               <small>{m.sender_name}</small>
               <p>{m.body}</p>
-              <small>{new Date(m.created_at).toLocaleString()}</small>
+              <small>{formatDateTime(m.created_at)}</small>
             </div>
           ))
         )}
@@ -139,9 +141,9 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
     };
   }, []);
   // Stable callback prevents polling effects from restarting on every render.
-  const onRead = useRef((id) =>
+  const onRead = useCallback((id) =>
     setItems((old) => old.map((x) => (x.conversation_id === id ? { ...x, unread_count: 0 } : x)))
-  ).current;
+  , []);
   const current = items.find((x) => x.conversation_id === selected) || items[0];
   return (
     <main className="content">
@@ -168,7 +170,7 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
                 <b>{x.full_name}</b>
                 <span>{x.last_message}</span>
                 {x.unread_count > 0 && <em className="unread-badge">{x.unread_count}</em>}
-                <small>{new Date(x.updated_at).toLocaleDateString()}</small>
+                <small>{formatDate(x.updated_at)}</small>
               </button>
             ))}
           </section>

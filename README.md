@@ -21,13 +21,15 @@ database/       Reproducible schema and non-destructive upgrade scripts
 
 - Public homepage, responsive/collapsible sidebar and role-specific workspaces.
 - Student / advertiser authentication with bcrypt + HTTP-only JWT cookie.
-- Invite-only admin registration: use `FMF-ADMIN-2026` once after running the database upgrade, then create private replacement codes from the Admin dashboard.
+- Invite-only admin registration: use `FMF-ADMIN-2026` once after running the database upgrade, then create private replacement codes from Platform management.
 - Listing CRUD, local photo upload (up to five photos), saving, detailed filtering and listing details.
 - Enquiry chat history: both the student and advertiser can write in the same private conversation; advertiser can accept or decline.
 - Student-only flatmate search and matching, dynamic compatibility explanations, profile cards,
   favourites and a separate saved-flatmates page. Advertisers deliberately have no matching page.
 - Reporting and moderation workflow: any signed-in user can report a listing; automated safety flags create a pending report and every decision remains with an administrator.
 - Full listing data: rent, bond, address, room details, availability, rules, JSON utilities, transport access, status and up to five photos.
+- Live administrator outcome diagrams for listing publication/status, student needs, enquiry outcomes and flatmate engagement.
+- Coursework-safe rental checkout with server-validated availability and auditable demo payment records. It never collects card details or moves real funds.
 
 ## Five AI-enhanced functions
 
@@ -42,7 +44,8 @@ database/       Reproducible schema and non-destructive upgrade scripts
 5. **Safety support** combines Gemini review with explainable scam, pressure, incomplete-address
    and off-platform-contact rules. Flagged listings still require a human administrator decision.
 
-Local fallback mode is deterministic and sends no data externally. With `AI_MODE=gemini`, search
+Each AI service has a clearly labelled Gemini-first section followed by a deterministic local
+fallback. With a Gemini key configured, search
 text and selected public listing fields may be sent to Gemini for embeddings, summaries or safety
 support. Passwords, messages, contact details, account identity and precise street address are not
 included. Automated outputs are decision support, not housing or moderation decisions.
@@ -50,7 +53,7 @@ included. Automated outputs are decision support, not housing or moderation deci
 ## Run locally
 
 1. For a fresh database, run `database/schema.sql`. For the existing Neon database, run
-   `npm run migrate` from `backend`; this keeps existing data and adds flatmate favourites.
+   `npm run migrate` from `backend`; this keeps existing data and also adds the demo payment table.
 2. In `backend`, copy `.env.example` to `.env`, then set `DB_NAME=flatmate_finder_app` and your PostgreSQL password in `DB_PASSWORD`.
 3. Terminal 1:
 
@@ -76,7 +79,7 @@ To enable Gemini, keep the key on the server only and set:
 AI_MODE=gemini
 GEMINI_API_KEY=your-server-side-key
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
-GEMINI_TEXT_MODEL=gemini-3.6-flash
+GEMINI_TEXT_MODEL=gemini-3.5-flash
 ```
 
 Existing listings need embeddings once. This sends only the public listing fields documented above

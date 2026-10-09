@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import ChatPanel from '../components/ChatPanel';
 import { api } from '../services/api';
@@ -7,7 +7,7 @@ export default function EnquiriesPage({ user, focusId }) {
   const [enquiries, setEnquiries] = useState([]);
   const [active, setActive] = useState(null);
   const [error, setError] = useState('');
-  const load = async (preferredId = focusId) => {
+  const load = useCallback(async (preferredId = focusId) => {
     try {
       const data = await api('/enquiries');
       setEnquiries(data.enquiries);
@@ -20,10 +20,10 @@ export default function EnquiriesPage({ user, focusId }) {
     } catch (e) {
       setError(e.message);
     }
-  };
+  }, [focusId]);
   useEffect(() => {
     load(focusId);
-  }, [focusId]);
+  }, [focusId, load]);
   const open = (enquiry) => {
     setActive(enquiry);
     setEnquiries((old) =>

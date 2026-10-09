@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
+import { formatDate } from '../utils/dates';
 import ProfilePhoto from '../components/ProfilePhoto';
 import { api } from '../services/api';
 export default function FlatmateDetailPage({ person, setPage }) {
@@ -105,7 +106,7 @@ export default function FlatmateDetailPage({ person, setPage }) {
                   </div>
                   <div>
                     <dt>Move-in date</dt>
-                    <dd>{profile.move_in_date || 'Flexible'}</dd>
+                    <dd>{formatDate(profile.move_in_date, 'Flexible')}</dd>
                   </div>
                   <div>
                     <dt>Study routine</dt>
