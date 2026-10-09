@@ -42,28 +42,17 @@ router.get(
     const {
       rows: [profile],
     } = await pool.query('SELECT * FROM profiles WHERE user_id=$1', [req.user.userId]);
-    const { rows: savedListings } = await pool.query(
-      `
-        SELECT l.rent, l.city, l.suburb, l.room_type
-        FROM saved_listing s
-        JOIN listing l ON l.listing_id = s.listing_id
-        WHERE s.student_id = $1
-        ORDER BY s.saved_at DESC
-        LIMIT 12
-      `,
-      [req.user.userId]
-    );
     const { rows } = await pool.query(
       `${select} WHERE l.status='available' GROUP BY l.listing_id,u.full_name`
     );
-    const scores = await ai.enhancedListingScores(profile, rows, { savedListings });
+    const scores = await ai.enhancedListingScores(profile, rows);
     const recommendations = rows
       .map((listing, index) => ({ ...listing, ai_match: scores[index] }))
       .sort((a, b) => b.ai_match.score - a.ai_match.score);
     res.json({
       recommendations,
       ai_notice:
-        'Explainable ranking uses your budget, location, lifestyle and recent saved listings.',
+        'Ranking uses your profile and listing information, not favourites or search history.',
     });
   })
 );
@@ -87,7 +76,7 @@ router.get(
       WHERE l.status = 'available'
         AND ($1::numeric IS NULL OR l.rent >= $1)
         AND ($2::numeric IS NULL OR l.rent <= $2)
-        AND ($3 = '' OR l.city ILIKE $3 OR l.suburb ILIKE $3)
+        AND ($3 = '' OR lower(l.city)=lower($3))
         AND (
           $4 = false
           OR l.house_rules ILIKE '%quiet%'
@@ -111,14 +100,14 @@ router.get(
     const params = [
       minRent,
       maxRent,
-      location ? `%${location}%` : '',
+      location || '',
       interpretation.quiet,
       interpretation.furnished,
       roomType,
       interpretation.transport ? `%${interpretation.transport}%` : '',
       interpretation.lifestyle,
       availableFrom || null,
-      requested.transportIds,requested.utilityIds,requested.lifestyle,
+      requested.transport,requested.utilities,requested.lifestyle,
     ];
     const { rows } = await pool.query(sql, params);
     const queryEmbedding = searchText
