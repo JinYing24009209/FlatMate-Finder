@@ -3,7 +3,7 @@ const { pool } = require('../config/database');
 const { auth, allow } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const ai = require('../services/aiService');
-const { searchFilters } = require('../services/listingFilters');
+const { searchFilters,extraListingConditions } = require('../services/listingFilters');
 const v = require('../services/validation');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
 router.use('/ai', (req, res, next) => req.path === '/status' ? next() : aiRateLimit(req, res, next));
@@ -105,6 +105,7 @@ router.get(
           )
         )
         AND ($9::date IS NULL OR l.available_from <= $9::date)
+        ${extraListingConditions(10)}
       GROUP BY l.listing_id, u.full_name
       ORDER BY l.rent`;
     const params = [
@@ -117,6 +118,7 @@ router.get(
       interpretation.transport ? `%${interpretation.transport}%` : '',
       interpretation.lifestyle,
       availableFrom || null,
+      requested.transportIds,requested.utilityIds,requested.lifestyle,
     ];
     const { rows } = await pool.query(sql, params);
     const queryEmbedding = searchText

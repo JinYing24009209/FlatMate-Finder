@@ -8,6 +8,7 @@ const { enhancedFlatmateScores } = require('../services/aiService');
 const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
+const {keywords}=require('../services/listingFilters');
  
 //E01：SQL模板，查询房源，发布者名字及房源照片 | E01. SQL template for listings, advertiser names and listing photos.
 const compactSelect = `
@@ -282,6 +283,11 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
   const q = v.text(filters.q, 'Search text', 1000);
   const location = v.text(filters.location, 'Location', 160);
   const maxBudget = v.number(filters.maxBudget, 'Maximum budget');
+  const study=v.text(filters.studyHabits,'Study habits',160);
+  const lifestyle=keywords(filters.lifestyle);
+  const from=v.date(filters.moveInFrom,'Earliest move-in date');
+  const to=v.date(filters.moveInTo,'Latest move-in date');
+  if(from&&to&&from>to)throw v.invalid('Earliest move-in date cannot be after the latest date.');
   // 查询符合条件的室友资料，并标记当前用户是否已经收藏该室友。 | Find eligible flatmate profiles and indicate whether the current user has saved each one.
   // savedOnly 为 true 时，只返回已收藏且仍符合展示条件的室友。 | When savedOnly is true, return only saved flatmates that still meet the visibility conditions.
   const { rows } = await pool.query(
@@ -304,6 +310,11 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
         AND ($3 = '' OR p.preferred_location ILIKE $3)
         AND ($4::numeric IS NULL OR p.budget_min IS NULL OR p.budget_min <= $4)
         AND ($5 = false OR sf.saved_user_id IS NOT NULL)
+        AND ($6='' OR position(lower($6) in lower(COALESCE(p.study_habits,'')))>0)
+        AND NOT EXISTS(SELECT 1 FROM unnest($7::text[]) wanted WHERE NOT EXISTS(
+          SELECT 1 FROM jsonb_array_elements_text(p.lifestyle_tags) tag WHERE lower(tag)=wanted))
+        AND ($8::date IS NULL OR p.move_in_date >= $8::date)
+        AND ($9::date IS NULL OR p.move_in_date <= $9::date)
     `,
     [
       userId,
@@ -311,6 +322,7 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
       location ? `%${location}%` : '',
       maxBudget,
       savedOnly,
+      study,lifestyle,from,to,
     ]
   );
   const profileComplete = Boolean(

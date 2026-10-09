@@ -20,6 +20,8 @@ app.get('/api/health', async (_req, res, next) => {
 });
 app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/profile', require('./src/routes/profileRoutes'));
+app.use('/api/categories', require('./src/routes/categoryRoutes'));
+app.use('/api/reports', require('./src/routes/reportRoutes'));
 app.use('/api/listings', require('./src/routes/listingRoutes'));
 app.use('/api', require('./src/routes/communityRoutes'));
 app.use('/api', require('./src/routes/aiRoutes'));
