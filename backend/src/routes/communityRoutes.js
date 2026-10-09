@@ -5,12 +5,15 @@ const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler'); //自动捕获异步错误 | Automatically forward asynchronous errors.
 const { notify } = require('../services/notificationService');
 const { enhancedFlatmateScores } = require('../services/aiService');
+const v = require('../services/validation');
+const { transaction } = require('../services/transaction');
+const { aiRateLimit } = require('../middleware/aiRateLimit');
  
 //E01：SQL模板，查询房源，发布者名字及房源照片 | E01. SQL template for listings, advertiser names and listing photos.
 const compactSelect = `
   SELECT l.*, u.full_name advertiser_name,
     COALESCE(
-      json_agg(DISTINCT p.photo_url) FILTER (WHERE p.photo_url IS NOT NULL),
+      json_agg(p.photo_url ORDER BY p.display_order, p.photo_id) FILTER (WHERE p.photo_url IS NOT NULL),
       '[]'
     ) photos
   FROM listing l
@@ -141,14 +144,16 @@ router.post(
   asyncRoute(async (req, res) => {
     //检查咨询是否存在并合法，以及消息是否为空 | Check enquiry existence, access permission and non-empty message content.
     const enquiry = await accessibleEnquiry(req.params.id, req.user);
-    const body = req.body.body?.trim();
+    const body = v.text(req.body.body, 'Message', 3000, true);
     if (!enquiry) return fail(res, 404, 'Conversation not found.');
     if (enquiry === 'forbidden') return fail(res, 403, 'This conversation is private.');
     if (!body) return fail(res, 400, 'Message cannot be empty.');
     //将输入的消息插入数据库的消息表单 | Insert the message into the database message table.
+    const message = await transaction(async (client) => {
+    await client.query('UPDATE enquiry SET updated_at=now() WHERE enquiry_id=$1', [req.params.id]);
     const {
       rows: [message],
-    } = await pool.query(
+    } = await client.query(
       'INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES($1,$2,$3) RETURNING *',
       [req.params.id, req.user.userId, body]
     );
@@ -161,8 +166,11 @@ router.post(
       'message',
       `New message about “${enquiry.title}”.`,
       'enquiry',
-      enquiry.enquiry_id
+      enquiry.enquiry_id,
+      client
     );
+    return message;
+    });
     res.status(201).json({ message });
   })
 );
@@ -187,20 +195,25 @@ router.patch(
     )
       return fail(res, 403, 'Only the advertiser can change this status.');
     //更新状态 | Update the status.
+    const updated = await transaction(async (client) => {
     const {
       rows: [updated],
-    } = await pool.query('UPDATE enquiry SET status=$1 WHERE enquiry_id=$2 RETURNING *', [
+    } = await client.query('UPDATE enquiry SET status=$1,updated_at=now() WHERE enquiry_id=$2 RETURNING *', [
       status,
       req.params.id,
     ]);
+    if (!updated) throw v.invalid('Enquiry not found.', 404);
     //通知该学生咨询状态已改变 | Notify the student that the enquiry status has changed.
     await notify(
       updated.student_id,
       'enquiry_update',
       `Your enquiry about “${enquiry.title}” is now ${status}.`,
       'enquiry',
-      updated.enquiry_id
+      updated.enquiry_id,
+      client
     );
+    return updated;
+    });
     res.json({ message: `Enquiry ${status}.`, enquiry: updated });
   })
 );
@@ -266,7 +279,9 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
     //读取自己的资料 | Read the current user's profile.
   } = await pool.query('SELECT * FROM profiles WHERE user_id=$1', [userId]);
   // 读取生活习惯，位置，预算 | Read lifestyle keywords, location and budget filters.
-  const { q = '', location = '', maxBudget = '' } = filters;
+  const q = v.text(filters.q, 'Search text', 1000);
+  const location = v.text(filters.location, 'Location', 160);
+  const maxBudget = v.number(filters.maxBudget, 'Maximum budget');
   // 查询符合条件的室友资料，并标记当前用户是否已经收藏该室友。 | Find eligible flatmate profiles and indicate whether the current user has saved each one.
   // savedOnly 为 true 时，只返回已收藏且仍符合展示条件的室友。 | When savedOnly is true, return only saved flatmates that still meet the visibility conditions.
   const { rows } = await pool.query(
@@ -294,7 +309,7 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
       userId,
       q ? `%${q}%` : '',
       location ? `%${location}%` : '',
-      Number(maxBudget) || null,
+      maxBudget,
       savedOnly,
     ]
   );
@@ -331,6 +346,7 @@ router.get(
   '/matches',
   auth,
   allow('student'),
+  aiRateLimit,
   asyncRoute(async (req, res) => {
     const result = await loadMatches(req.user.userId, req.query);
     res.json(result);
@@ -342,6 +358,7 @@ router.get(
   '/saved-flatmates',
   auth,
   allow('student'),
+  aiRateLimit,
   asyncRoute(async (req, res) => {
     const result = await loadMatches(req.user.userId, {}, true);
     res.json(result);

@@ -3,6 +3,7 @@ const { pool } = require('../config/database');
 const { auth, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const { enhancedFlatmateMatchScore } = require('../services/aiService');
+const { aiRateLimit } = require('../middleware/aiRateLimit');
 const profiles = express.Router();
 const conversations = express.Router();
 const studentAccess = asyncRoute(async (req, res, next) => {
@@ -67,6 +68,7 @@ async function insertMessage(client, row, sender, body) {
 }
 profiles.get(
   '/:id',
+  aiRateLimit,
   asyncRoute(async (req, res) => {
     if (!validId(req.params.id)) return fail(res, 400, 'Invalid profile.');
     const profile = await targetProfile(req.params.id, req.user.userId);
