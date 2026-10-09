@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 
-export default function ListingDetailPage({ listing, user, setPage, onSignIn }) {
+export default function ListingDetailPage({ listing, user, setPage, onSignIn, onCheckout }) {
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState('');
   const [summary, setSummary] = useState('');
@@ -111,6 +111,8 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
     }
   };
   const utilityNames = Object.keys(listing.utilities || {}).filter((key) => listing.utilities[key]);
+  const unavailable = listing.status !== 'available';
+  const fullAddress = [listing.address, listing.suburb, listing.city].filter(Boolean).join(', ');
 
   return (
     <main className="content">
@@ -172,6 +174,12 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
             </h2>
             <span className="status accepted">{listing.status}</span>
           </div>
+          {unavailable && (
+            <p className="availability-warning">
+              This home is {listing.status}. It is shown for reference but is not accepting new
+              enquiries or payments.
+            </p>
+          )}
           <p className="lead-copy">
             {listing.description || 'The advertiser has not added a description yet.'}
           </p>
@@ -189,6 +197,8 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
           )}
           <h3>Home details</h3>
           <dl>
+            <dt>Full address</dt>
+            <dd><address>{fullAddress}</address></dd>
             <dt>Room</dt>
             <dd>
               {listing.room_type} · {listing.bedrooms || 1} bed · {listing.bathrooms || 1} bath
@@ -215,9 +225,18 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn }) 
                 placeholder="Introduce yourself and ask about the room…"
                 onChange={(event) => setMessage(event.target.value)}
               />
-              <button className="primary wide" onClick={send}>
+              <button className="primary wide" onClick={send} disabled={unavailable}>
                 Start conversation
               </button>
+              {user.student_type !== 'flatmate' && (
+                <button
+                  className="outline wide payment-button"
+                  onClick={onCheckout}
+                  disabled={unavailable}
+                >
+                  Continue to secure payment →
+                </button>
+              )}
               <section className="safety-check-card">
                 <span className="eyebrow">AI SAFETY SUPPORT</span>
                 <h3>Check this listing</h3>
