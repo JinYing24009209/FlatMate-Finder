@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import CategoryFields from '../components/CategoryFields';
+import { useState } from 'react';
+import CitySelect from '../components/CitySelect';
 import PageHeader from '../components/PageHeader';
 import PhotoUploader from '../components/PhotoUploader';
 import DateInput from '../components/DateInput';
@@ -35,21 +35,14 @@ export default function ListingFormPage({ editing, setPage }) {
   const [form, setForm] = useState(initial);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [categories,setCategories]=useState([]);
-  const [categoriesReady,setCategoriesReady]=useState(false);
-  useEffect(()=>{api('/categories').then(d=>{
-    setCategories(d.categories);
-    setForm(old=>({...old,category_ids:old.category_ids || d.categories.filter(c=>c.kind==='transport'
-      ?(old.transport_options||[]).some(n=>n.toLowerCase()===c.name.toLowerCase())
-      :Object.keys(old.utilities||{}).some(n=>old.utilities[n]&&n.toLowerCase()===c.name.toLowerCase())).map(c=>c.category_id)}));
-    setCategoriesReady(true);
-  }).catch(e=>setNotice(`Could not load categories: ${e.message}`));},[]);
+  const [transportText,setTransportText]=useState((initial.transport_options||[]).join(', '));
+  const [utilitiesText,setUtilitiesText]=useState(Object.keys(initial.utilities||{}).filter(key=>initial.utilities[key]).join(', '));
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   const payload = () => ({
     ...form,
     bedrooms: 1,
-    utilities: {},
-    transport_options: [],
+    utilities: Object.fromEntries(utilitiesText.split(',').map(x=>x.trim()).filter(Boolean).map(x=>[x,true])),
+    transport_options: transportText.split(',').map(x=>x.trim()).filter(Boolean),
   });
   const save = async () => {
     setBusy(true);
@@ -127,7 +120,7 @@ export default function ListingFormPage({ editing, setPage }) {
           </label>
           <label>
             City
-            <input name="city" required value={form.city} onChange={change} />
+            <CitySelect required value={form.city} onChange={change} />
           </label>
           <label>
             Available from
@@ -166,15 +159,14 @@ export default function ListingFormPage({ editing, setPage }) {
             House rules
             <textarea name="house_rules" value={form.house_rules || ''} onChange={change} />
           </label>
-          <CategoryFields categories={categories} selected={form.category_ids} kind="utility" label="Facilities & utilities included"
-            onChange={category_ids=>setForm({...form,category_ids})}/>
-          <CategoryFields categories={categories} selected={form.category_ids} kind="transport" label="Transport access"
-            onChange={category_ids=>setForm({...form,category_ids})}/>
+          <label>Facilities & utilities included<input value={utilitiesText} maxLength={3000} onChange={e=>setUtilitiesText(e.target.value)} placeholder="Power, water, fibre internet" /></label>
+          <label>Transport access<input value={transportText} maxLength={3000} onChange={e=>setTransportText(e.target.value)} placeholder="Bus stop 2 minutes away, cycle lane" /></label>
+          <p className="muted">Enter your own descriptions, separated by commas. Up to 20 entries, 160 characters each.</p>
         </div>
         <PhotoUploader photos={form.photos} onChange={(photos) => setForm({ ...form, photos })} />
       </section>
       <div className="button-row sticky-actions">
-        <button className="primary" onClick={save} disabled={busy||!categoriesReady}>
+        <button className="primary" onClick={save} disabled={busy}>
           {busy ? 'Saving photos and details…' : editing ? 'Save changes' : 'Publish listing'}
         </button>
       </div>
