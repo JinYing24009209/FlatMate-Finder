@@ -28,6 +28,20 @@ export default function App() {
   const [focusEnquiry, setFocusEnquiry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [navigationHistory, setNavigationHistory] = useState([]);
+  useEffect(() => {
+    const reset = () => {
+      if (!user) return;
+      setUser(null);
+      setSelected(null);
+      setEditing(null);
+      setFocusEnquiry(null);
+      setNavigationHistory([]);
+      setPageState('Dashboard');
+      setView('auth');
+    };
+    window.addEventListener('session-invalid', reset);
+    return () => window.removeEventListener('session-invalid', reset);
+  }, [user]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
