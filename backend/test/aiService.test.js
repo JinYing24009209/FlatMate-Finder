@@ -157,3 +157,28 @@ test('embedding errors fall back cleanly instead of breaking smart search', asyn
     process.env.GEMINI_API_KEY = originalKey;
   }
 });
+
+test('Gemini listing recommendation receives bounded saved preferences without saved identities', async () => {
+  const originalFetch = global.fetch;
+  const originalKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'test-key';
+  let prompt;
+  global.fetch = async (_url, options) => {
+    prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify({matches:[{index:0,score:85,reasons:['Fits the budget.']}]})}]}}]})};
+  };
+  try {
+    const saved = Array.from({length:15}, () => ({rent:200,city:'Auckland',suburb:'Albany',room_type:'Single room',
+      email:'hidden@example.invalid',address:'Hidden street',listing_id:12345}));
+    const result = await ai.enhancedListingScores({budget_max:250}, [{rent:220,city:'Auckland'}], {savedListings:saved});
+    assert.equal(result[0].mode,'gemini');
+    const payload = JSON.parse(prompt.slice(prompt.indexOf('{"preferences"')));
+    assert.equal(payload.recent_saved_listings.length,12);
+    assert.deepEqual(Object.keys(payload.recent_saved_listings[0]).sort(),['city','rent','room_type','suburb']);
+    assert.doesNotMatch(prompt,/hidden@example|Hidden street|12345/);
+    assert.match(prompt,/No search history is supplied/);
+  } finally {
+    global.fetch=originalFetch;
+    if(originalKey===undefined)delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY=originalKey;
+  }
+});

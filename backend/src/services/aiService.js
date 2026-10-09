@@ -351,6 +351,8 @@ async function enhancedListingScores(profile, listings, context = {}) {
     const result = await generateGeminiJson(
       [
         'Rank student accommodation listings against the supplied housing preferences.',
+        'Recent saved listings are preference hints, not commitments. Use them alongside the explicit profile.',
+        'No search history is supplied. Do not claim to use past searches or infer unstated facts.',
         'Return {"matches":[{"index":0,"score":80,"reasons":["short factual reason"]}]}.',
         'Include each index once; score integer 0-100; 1-4 reasons. Do not infer sensitive traits.',
         JSON.stringify({
@@ -359,6 +361,9 @@ async function enhancedListingScores(profile, listings, context = {}) {
             preferred_location: profile.preferred_location,
             lifestyle_tags: profile.lifestyle_tags || [],
           },
+          recent_saved_listings: (context.savedListings || []).slice(0,12).map(item=>({
+            rent:item.rent,city:item.city,suburb:item.suburb,room_type:item.room_type,
+          })),
           listings: listings.map((item, index) => ({
             index,
             rent: item.rent,
