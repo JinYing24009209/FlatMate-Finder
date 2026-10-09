@@ -8,8 +8,8 @@ export default function PhotoUploader({ photos = [], onChange }) {
         files.map(
           (file) =>
             new Promise((resolve, reject) => {
-              if (!file.type.startsWith('image/'))
-                return reject(new Error('Please choose image files only.'));
+              if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+                return reject(new Error('Please choose JPEG, PNG or WebP images.'));
               if (file.size > 1000000)
                 return reject(new Error('Each image must be below 1 MB for this coursework demo.'));
               const reader = new FileReader();
@@ -29,7 +29,7 @@ export default function PhotoUploader({ photos = [], onChange }) {
     <section className="photo-uploader">
       <label>
         Property photos (up to 5)
-        <input type="file" accept="image/*" multiple onChange={addFiles} />
+        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addFiles} />
       </label>
       <p className="muted">
         Choose real photos from your device. They are stored with the listing.
