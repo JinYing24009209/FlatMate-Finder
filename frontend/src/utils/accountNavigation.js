@@ -1,9 +1,10 @@
-const housingPages = ['Dashboard', 'Browse listings', 'Saved listings', 'Enquiries', 'My profile'];
+const housingPages = ['Dashboard', 'Browse listings', 'Saved listings', 'Successful payments', 'Enquiries', 'My profile'];
 
 const flatmatePages = [
   'Dashboard',
   'Flatmate matches',
   'Saved flatmates',
+  'Matched flatmates',
   'Enquiries',
   'My profile',
 ];
