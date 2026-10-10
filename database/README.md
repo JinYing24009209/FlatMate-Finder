@@ -15,3 +15,5 @@ After the existing schema is installed, run `npm run migrate` in `backend` befor
 
 The same command then applies `outcomes-upgrade.sql`. It adds separate consent flags (both initially false) and a mutual-match timestamp to flatmate conversations. It also preserves successful demo-payment listing snapshots and changes their listing foreign key to `ON DELETE SET NULL`, so deleting a listing does not delete a payment record. Existing successful payments are backfilled only where the original listing still exists. Already deleted historical records cannot be recovered by this migration. The migration is rerunnable and does not reset existing agreements.
 
+Finally, `moderation-upgrade.sql` adds the nullable `report.resolution_action` field. New upheld decisions record `close_listing` or `deactivate_user`; old reviews remain NULL and are not retrospectively counted as successful moderation actions.
+
