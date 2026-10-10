@@ -112,6 +112,15 @@ Before a real launch, replace the bootstrap admin code, use managed object stora
 
 ## Student journeys
 
+### Mutual matches, payment records and search
+
+- Run `npm run migrate` in `backend` before using these features; it also applies `database/outcomes-upgrade.sql`.
+- In flatmate Enquiries, each participant controls only their own agreement button. Both choices initially default to Not agreed. Both agreeing creates a mutual match; either withdrawing removes it from both Matched flatmates pages. The server serializes concurrent updates, and only the two participants can change their choices. This is mutual consent, not the AI compatibility score or a tenancy agreement. Multiple mutual pairs are allowed. A matched partner can still open a hidden profile; inactive accounts are not displayed.
+- Housing students have a Successful payments page containing only their own successful demonstration payments, including unavailable listings. If a listing is later deleted, its saved payment snapshot remains visible. This is not a real payment provider, receipt or tenancy contract.
+- Both search pages separate the smart-search text from standard filters. Smart search uses its own text, not the previous standard form values. The listing Area dropdown follows City and contains suburbs currently represented by available listings in that city; matching is case-insensitive and exact. Changing city clears area.
+- Flatmate smart search sends only the current query to Gemini to extract location, maximum budget, study habits, lifestyle and move-in date boundaries. The server validates and applies these filters, then uses the existing compatibility ranking. The local fallback recognizes a limited set of English keywords and explicit YYYY-MM-DD dates. The page shows interpreted criteria and the actual provider; unrecognized text is not a guarantee of semantic filtering. Saved people and search history are not used.
+- Report-target pages reuse the ordinary listing/profile detail layouts but show administrator review information instead of student save, enquiry and payment actions.
+
 ### Community update: migration and behaviour
 
 Before running this version, run `npm run migrate` from `backend`. New installations must first run `database/schema.sql`, then the migration. The migration now also applies `database/community-upgrade.sql`: it preserves existing records, backfills managed transport/facility choices and adds report evidence and notification snapshots. Back up the database before upgrading a shared deployment.
