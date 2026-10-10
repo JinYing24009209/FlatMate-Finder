@@ -241,3 +241,71 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
       focusId &&
       current?.conversation_id === Number(focusId) &&
       positioned.current !== focusId
+    ) {
+      document
+        .querySelector('.chat-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      positioned.current = focusId;
+    }
+  }, [focusId, current]);
+
+  return (
+    <main className="content">
+      <PageHeader
+        title="Flatmate enquiries"
+        subtitle="Your introductions, replies and plans — together in one place."
+      />
+
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="empty">Loading conversations…</div>
+      ) : items.length ? (
+        <div className="inbox-layout">
+          <section
+            className="conversation-list"
+            aria-label="Flatmate conversations"
+          >
+            {items.map(x => (
+              <button
+                key={x.conversation_id}
+                className={
+                  current?.conversation_id === x.conversation_id ? 'selected' : ''
+                }
+                onClick={() => setSelected(x.conversation_id)}
+              >
+                <b>{x.full_name}</b>
+                <span>{x.last_message}</span>
+                {x.unread_count > 0 && (
+                  <em className="unread-badge">{x.unread_count}</em>
+                )}
+                <small>{formatDate(x.updated_at)}</small>
+              </button>
+            ))}
+          </section>
+
+          {current && (
+            <FlatmateChat
+              key={current.conversation_id}
+              conversation={current}
+              user={user}
+              onRead={onRead}
+              onAgreement={onAgreement}
+            />
+          )}
+        </div>
+      ) : (
+        !error && (
+          <div className="empty">
+            No conversations yet. Open a flatmate profile and send an introduction
+            to get started.
+          </div>
+        )
+      )}
+    </main>
+  );
+}
