@@ -16,8 +16,10 @@ import ListingFormPage from './pages/ListingFormPage';
 import MyListingsPage from './pages/MyListingsPage';
 import AdminPage from './pages/AdminPage';
 import ReportTargetPage from './pages/ReportTargetPage';
+import OutcomesPage from './pages/OutcomesPage';
 import PaymentPage from './pages/PaymentPage';
 import './styles/app.css';
+import './styles/outcomes.css';
 import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
 
 export default function App() {
@@ -182,6 +184,8 @@ export default function App() {
       />
     ),
     'Payment checkout': <PaymentPage listing={selected} setPage={setPage} />,
+    'Successful payments': <OutcomesPage key="payments" setPage={setPage} setSelected={setSelected}/>,
+    'Matched flatmates': <OutcomesPage key="confirmed" flatmates setPage={setPage} setSelected={setSelected}/>,
     'My profile': <ProfilePage user={user} />,
     Enquiries:
       user?.student_type === 'flatmate' ? (
