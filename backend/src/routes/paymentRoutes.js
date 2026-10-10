@@ -72,7 +72,10 @@ router.post(
       }
       const reference = `DEMO-${payment.payment_id}-${Date.now()}`;
       const { rows: [updated] } = await client.query(
-        `UPDATE rental_payment SET status='succeeded', provider_reference=$1, completed_at=now()
+        `UPDATE rental_payment SET status='succeeded', provider_reference=$1, completed_at=now(),
+         listing_snapshot=(SELECT to_jsonb(l)||jsonb_build_object('advertiser_name',u.full_name,'photos',
+           COALESCE((SELECT jsonb_agg(photo_url ORDER BY display_order,photo_id) FROM listing_photo WHERE listing_id=l.listing_id),'[]'::jsonb))
+           FROM listing l JOIN users u ON u.user_id=l.advertiser_id WHERE l.listing_id=rental_payment.listing_id)
          WHERE payment_id=$2 RETURNING *`,
         [reference, payment.payment_id]
       );
@@ -106,6 +109,20 @@ router.post(
   })
 );
 
+router.get(
+  '/successful',
+  asyncRoute(async(req,res)=>{
+    const access=await pool.query("SELECT 1 FROM users WHERE user_id=$1 AND student_type='housing'",[req.user.userId]);
+    if(!access.rowCount)return fail(res,403,'A housing student account is required.');
+    const {rows}=await pool.query(`SELECT p.payment_id,p.amount AS paid_amount,p.completed_at,p.provider_reference,p.listing_snapshot,
+      l.listing_id IS NULL AS removed,
+      to_jsonb(l)||jsonb_build_object('advertiser_name',u.full_name,'photos',COALESCE((SELECT jsonb_agg(photo_url ORDER BY display_order,photo_id) FROM listing_photo WHERE listing_id=l.listing_id),'[]'::jsonb)) AS live_listing
+      FROM rental_payment p LEFT JOIN listing l ON l.listing_id=p.listing_id LEFT JOIN users u ON u.user_id=l.advertiser_id
+      WHERE p.student_id=$1 AND p.status='succeeded' ORDER BY p.completed_at DESC,p.payment_id DESC`,[req.user.userId]);
+    res.json({listings:rows.map(({listing_snapshot,live_listing,...payment})=>({...listing_snapshot,...live_listing,...payment,
+      ...(payment.removed?{status:'removed'}:{})}))});
+  })
+);
 router.get(
   '/mine',
   asyncRoute(async (req, res) => {
