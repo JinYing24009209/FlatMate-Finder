@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { getAccountPages } from '../utils/accountNavigation';
 
 const iconPaths = {
+  'Successful payments': <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m8 12 3 3 5-6"/></>,
+  'Matched flatmates': <><circle cx="8" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0m1-9 3 3 5-6"/></>,
   Dashboard: <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
   'Admin home': <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
   'Browse listings': (
