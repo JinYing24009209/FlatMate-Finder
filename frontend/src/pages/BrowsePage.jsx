@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import ListingCard from '../components/ListingCard';
 import DateInput from '../components/DateInput';
-import CategoryFields from '../components/CategoryFields';
+import CitySelect from '../components/CitySelect';
 import { api } from '../services/api';
 
 const emptyFilters = {
@@ -12,7 +12,7 @@ const emptyFilters = {
   maxRent: '',
   roomType: '',
   availableFrom: '',
-  transportIds:'',utilityIds:'',lifestyle:'',
+  transport:'',utilities:'',lifestyle:'',
 };
 
 export default function BrowsePage({ user, setPage, setSelected }) {
@@ -28,8 +28,6 @@ export default function BrowsePage({ user, setPage, setSelected }) {
   const [hasSearched, setHasSearched] = useState(false);
   const [searchMode, setSearchMode] = useState('standard');
   const [aiStatus, setAiStatus] = useState(null);
-  const [categories,setCategories]=useState([]);
-  useEffect(()=>{api('/categories').then(d=>setCategories(d.categories)).catch(e=>setNotice(`Filters unavailable: ${e.message}`));},[]);
   const resultsRef = useRef(null);
   const searchSessionRef = useRef(null);
 
@@ -214,9 +212,7 @@ export default function BrowsePage({ user, setPage, setSelected }) {
               value={filters.q}
               onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             />
-            <input
-              aria-label="City or suburb"
-              placeholder="City or suburb"
+            <CitySelect
               value={filters.city}
               onChange={(event) => setFilters({ ...filters, city: event.target.value })}
             />
@@ -257,14 +253,12 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             </label>
           </div>
           <div className="form-grid additional-filters">
-            <CategoryFields categories={categories} selected={filters.transportIds?filters.transportIds.split(',').map(Number):[]}
-              kind="transport" label="Transport" onChange={ids=>setFilters({...filters,transportIds:ids.join(',')})}/>
-            <CategoryFields categories={categories} selected={filters.utilityIds?filters.utilityIds.split(',').map(Number):[]}
-              kind="utility" label="Facilities & utilities" onChange={ids=>setFilters({...filters,utilityIds:ids.join(',')})}/>
+            <label>Transport<input value={filters.transport} maxLength={800} placeholder="e.g. bus, cycle" onChange={e=>setFilters({...filters,transport:e.target.value})}/></label>
+            <label>Facilities & utilities<input value={filters.utilities} maxLength={800} placeholder="e.g. internet, water" onChange={e=>setFilters({...filters,utilities:e.target.value})}/></label>
             <label>Life in the flat<input value={filters.lifestyle} maxLength={800} placeholder="e.g. quiet, tidy"
               onChange={e=>setFilters({...filters,lifestyle:e.target.value})}/></label>
           </div>
-          <p className="muted">All selected transport and facility options must match. Every comma-separated lifestyle phrase must appear in the description or house rules. Available by includes that date.</p>
+          <p className="muted">Every comma-separated phrase must match its field, ignoring case. Lifestyle phrases search the description and house rules. Available by includes that date.</p>
           <div className="search-actions">
             <button className="primary" type="submit" disabled={isSearching}>
               {isSearching ? 'Searching…' : 'Search listings'}
@@ -335,7 +329,7 @@ export default function BrowsePage({ user, setPage, setSelected }) {
                   <span className="ai-label">AI enhanced</span>
                 </div>
                 <p className="muted">
-                  Ranked by your budget, location, lifestyle and recent saved listings. Search history is not used.
+                  Ranked by your profile and listing information. Favourites and search history are not used.
                 </p>
               </div>
             </div>
