@@ -144,6 +144,18 @@ Before running this version, run `npm run migrate` from `backend`. New installat
 
 ### AI data, fallback and limitations
 
+The five feature implementations live in `backend/src/services`:
+
+| Owner | Feature file | Responsibility |
+| --- | --- | --- |
+| Ying Jin | `aiSmartSearch.js` | Listing and flatmate search parsing, embeddings and local relevance. |
+| Xiangxiao Li | `aiListingSummary.js` | Gemini summaries, date formatting and local summaries. |
+| Xinrui Gao | `aiSafetySupport.js` | Gemini safety assessment and the original local safety floor. |
+| Xinze Gao | `aiListingRecommendation.js` | Gemini listing ranking and local listing scores. |
+| Pengrui Su | `aiFlatmateRecommendation.js` | Gemini flatmate ranking, shared cache and local compatibility scores. |
+
+Each feature places external AI orchestration above its local algorithms. `geminiClient.js` is shared request infrastructure (model configuration, quota, retry and timeout), not a sixth feature. `aiService.js` remains a small compatibility export so existing routes and scripts keep the same imports. This organisation does not change prompts, scoring weights, response fields, cache limits or fallback decisions. Safety screening still combines local risk signals with Gemini results rather than discarding the local safety floor after a successful call.
+
 | Function | Fields sent to Gemini |
 | --- | --- |
 | Smart search | Current natural-language search text (up to 1,000 characters); semantic embeddings use search text and public listing content. |
