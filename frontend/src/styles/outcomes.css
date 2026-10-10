@@ -1,0 +1,78 @@
+.search-sections {
+  display: grid;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+.search-sections h2 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
+.smart-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+}
+.smart-search-row input {
+  flex: 1;
+  min-width: 0;
+}
+.smart-search-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.standard-search .search-bar {
+  display: block;
+}
+.standard-search .search-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+  gap: 14px;
+  align-items: end;
+}
+.standard-search .search-fields .date-filter {
+  grid-column: auto;
+}
+.standard-search .search-fields input,
+.standard-search .search-fields select {
+  width: 100%;
+  min-width: 0;
+}
+.standard-search .search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.chat-heading .agreement-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 430px;
+}
+.agreement-controls small {
+  flex-basis: 100%;
+}
+.agreement-controls .agreed {
+  background: #d9eee6;
+  color: #174d3c;
+  border-color: #398267;
+}
+.agreement-controls button:disabled {
+  opacity: 1;
+}
+@media(max-width:760px) {
+  .smart-search-row {
+    flex-direction: column;
+  }
+  .standard-search .search-fields {
+    grid-template-columns: 1fr;
+  }
+  .chat-heading {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}

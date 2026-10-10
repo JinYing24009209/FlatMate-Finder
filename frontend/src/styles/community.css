@@ -1,17 +1,80 @@
 /* Managed options, evidence and report forms share the existing visual language. */
-.category-options { border: 1px solid #c6d7d3; border-radius: 12px; padding: 16px; min-width: 0; }
-.category-options legend { padding: 0 8px; font-size: 1.05rem; font-weight: 700; }
-.category-options label { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-weight: 400; }
-.category-options input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; flex-shrink: 0; margin: 0; }
-.category-create, .additional-filters { margin: 20px 0; align-items: start; }
-.category-row { flex-wrap: wrap; gap: 16px; }
-.category-row label { flex: 1; min-width: 200px; }
-.behaviour-report { margin-top: 16px; }
-.report-box { display: grid; gap: 16px; padding: 16px; border: 1px solid #c6d7d3; border-radius: 12px; background: #fff; color: #163c35; }
-.report-box label { display: grid; gap: 8px; }
-.report-box textarea { min-height: 90px; }
-.report-evidence { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid #168578; padding: 12px; margin: 12px 0; }
-.danger-link { color: #8b3636; }
-.bubble .report-box { min-width: 0; }
-#my-reports { margin-top: 24px; }
-@media (max-width: 650px) { .category-create, .additional-filters { grid-template-columns: 1fr; } }
+.category-options {
+  border: 1px solid #c6d7d3;
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+.category-options legend {
+  padding: 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.category-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font-weight: 400;
+}
+.category-options input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+}
+.category-create,
+.additional-filters {
+  margin: 20px 0;
+  align-items: start;
+}
+.category-row {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.category-row label {
+  flex: 1;
+  min-width: 200px;
+}
+.behaviour-report {
+  margin-top: 16px;
+}
+.report-box {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #c6d7d3;
+  border-radius: 12px;
+  background: #fff;
+  color: #163c35;
+}
+.report-box label {
+  display: grid;
+  gap: 8px;
+}
+.report-box textarea {
+  min-height: 90px;
+}
+.report-evidence {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-left: 3px solid #168578;
+  padding: 12px;
+  margin: 12px 0;
+}
+.danger-link {
+  color: #8b3636;
+}
+.bubble .report-box {
+  min-width: 0;
+}
+#my-reports {
+  margin-top: 24px;
+}
+@media (max-width: 650px) {
+  .category-create,
+  .additional-filters {
+    grid-template-columns: 1fr;
+  }
+}
