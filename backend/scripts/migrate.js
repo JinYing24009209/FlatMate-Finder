@@ -9,7 +9,8 @@ async function migrate() {
   const sql = fs.readFileSync(migrationPath, 'utf8');
   await pool.query(sql);
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'community-upgrade.sql'), 'utf8'));
-  console.log('Database upgrade completed.');
+  await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'outcomes-upgrade.sql'), 'utf8'));
+  console.log('Database upgrade completed, including mutual agreements and payment snapshots.');
   await pool.end();
 }
 

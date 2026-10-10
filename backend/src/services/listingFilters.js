@@ -1,6 +1,6 @@
 const v = require('./validation');
 function keywords(value,name='Lifestyle preferences') {
-  if(value==null||value==='')return [];
+  if(value==null||value==='') return [];
   const items=typeof value==='string'?value.split(',').map(x=>x.trim()).filter(Boolean):value;
   return [...new Set(v.strings(items,name,10,80).map(x=>x.toLowerCase()))];
 }
@@ -14,6 +14,7 @@ function listingFilters(query = {}) {
 function searchFilters(query = {}) {
   return { ...listingFilters(query), q: v.text(query.q, 'Search text', 1000),
     city: v.text(query.city, 'City', 120), roomType: v.roomType(query.roomType),
+    suburb: v.text(query.suburb,'Area',120),
     availableFrom: v.date(query.availableFrom, 'Available date'),
     transport:keywords(query.transport,'Transport'),utilities:keywords(query.utilities,'Facilities'),
     lifestyle:keywords(query.lifestyle) };
@@ -25,6 +26,7 @@ function extraListingConditions(start=7) {
     AND NOT EXISTS (SELECT 1 FROM unnest($${start+1}::text[]) phrase
       WHERE NOT EXISTS(SELECT 1 FROM jsonb_each(l.utilities) item WHERE item.value='true'::jsonb AND position(phrase in lower(item.key))>0))
     AND NOT EXISTS(SELECT 1 FROM unnest($${start+2}::text[]) preference
-      WHERE position(lower(preference) in lower(COALESCE(l.description,'') || ' ' || COALESCE(l.house_rules,'')))=0)`;
+      WHERE position(lower(preference) in lower(COALESCE(l.description,'') || ' ' || COALESCE(l.house_rules,'')))=0)
+    AND ($${start+3}='' OR lower(trim(l.suburb))=lower($${start+3}))`;
 }
 module.exports = { listingFilters, searchFilters, keywords, extraListingConditions };

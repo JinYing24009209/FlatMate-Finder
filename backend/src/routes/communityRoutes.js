@@ -4,7 +4,7 @@ const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler'); //自动捕获异步错误 | Automatically forward asynchronous errors.
 const { notify } = require('../services/notificationService');
-const { enhancedFlatmateScores } = require('../services/aiService');
+const { enhancedFlatmateScores, enhancedFlatmateSearch } = require('../services/aiService');
 const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
@@ -354,6 +354,11 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
 }
 
 //E12:获取匹配列表,返回匹配室友列表 | E12. Return the flatmate matching list.
+router.get('/matches/smart-search',auth,allow('student'),aiRateLimit,asyncRoute(async(req,res)=>{
+  const interpretation=await enhancedFlatmateSearch(req.query.q);
+  const result=await loadMatches(req.user.userId,interpretation);
+  res.json({...result,interpretation,search_mode:interpretation.mode});
+}));
 router.get(
   '/matches',
   auth,

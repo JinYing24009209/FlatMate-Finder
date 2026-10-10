@@ -11,7 +11,8 @@ router.use('/ai', (req, res, next) => req.path === '/status' ? next() : aiRateLi
 function listingInput(input) {
   v.object(input);
   const result = {};
-  for (const [key, max] of [['title',180],['description',10000],['city',120],['suburb',120],['house_rules',3000],['room_type',80]])
+  for (const [key, max] of [['title',180],['description',10000],['city',120],['suburb',120],
+    ['house_rules',3000],['room_type',80]])
     result[key] = v.text(input[key], key, max);
   result.rent = v.number(input.rent, 'Rent');
   result.bond = v.number(input.bond, 'Bond');
@@ -107,7 +108,7 @@ router.get(
       interpretation.transport ? `%${interpretation.transport}%` : '',
       interpretation.lifestyle,
       availableFrom || null,
-      requested.transport,requested.utilities,requested.lifestyle,
+      requested.transport,requested.utilities,requested.lifestyle,requested.suburb,
     ];
     const { rows } = await pool.query(sql, params);
     const queryEmbedding = searchText

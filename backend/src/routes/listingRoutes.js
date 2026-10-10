@@ -53,7 +53,7 @@ const { searchFilters,extraListingConditions } = require('../services/listingFil
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const { q, city, roomType, availableFrom,transport,utilities,lifestyle } = searchFilters(req.query);
+    const { q, city, suburb, roomType, availableFrom,transport,utilities,lifestyle } = searchFilters(req.query);
     let rentFilters;
     try {
       rentFilters = searchFilters(req.query);
@@ -77,11 +77,18 @@ router.get(
       rentFilters.maxRent,
       roomType,
       availableFrom || null,
-      transport,utilities,lifestyle,
+      transport,utilities,lifestyle,suburb,
     ]);
     res.json({ listings: rows });
   })
 );
+router.get('/areas',asyncRoute(async(req,res)=>{
+  const city=v.text(req.query.city,'City',120);
+  if(!city)return res.json({areas:[]});
+  const {rows}=await pool.query(`SELECT DISTINCT trim(suburb) AS name FROM listing WHERE status='available'
+    AND lower(city)=lower($1) AND trim(COALESCE(suburb,''))<>'' ORDER BY name`,[city]);
+  res.json({areas:rows.map(x=>x.name)});
+}));
 router.get(
   '/mine',
   auth,
