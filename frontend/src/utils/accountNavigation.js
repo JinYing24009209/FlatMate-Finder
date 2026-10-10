@@ -11,7 +11,7 @@ const flatmatePages = [
 
 const advertiserPages = ['Dashboard', 'My listings', 'Create listing', 'Enquiries', 'My profile'];
 
-const adminPages = ['Admin home', 'Platform management'];
+const adminPages = ['Dashboard', 'Platform management'];
 
 export function getAccountPages(user) {
   if (!user) return [];
