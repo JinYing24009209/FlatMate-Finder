@@ -106,11 +106,77 @@ test('community notifications, reports and free-text filters', {
       assert.equal((await pool.query("SELECT * FROM notification WHERE user_id=$1 AND related_entity_type='report' AND related_entity_id=$2",[admin.id,reportId])).rowCount,1);
     });
     await t.test('review sends one outcome; results are visible only to their reporter', async () => {
-      const body={status:'reviewed',resolution_note:'Warning issued after reviewing the message.'};
+      const body={status:'reviewed',resolution_note:'Account disabled after reviewing the message.'};
       assert.equal((await call('/admin/reports/'+reportId,'PATCH',body,admin.cookie)).status,200);
       assert.equal((await call('/admin/reports/'+reportId,'PATCH',body,admin.cookie)).status,409);
-      assert.equal((await call('/reports/mine','GET',undefined,student.cookie)).data.reports[0].resolution_note,body.resolution_note);
+      assert.equal((await call('/reports/mine','GET',undefined,student.cookie)).data.reports[0].resolution_note,'User deactivated. '+body.resolution_note);
+      assert.equal((await call('/reports/mine','GET',undefined,other.cookie)).status,401);
+      assert.equal((await pool.query('SELECT resolution_action FROM report WHERE report_id=$1',[reportId])).rows[0].resolution_action,'deactivate_user');
+      await pool.query('UPDATE users SET is_active=true WHERE user_id=$1',[other.id]);
       assert.equal((await call('/reports/mine','GET',undefined,other.cookie)).data.reports.length,0);
+    });
+    await t.test('moderation charts, listing takedown, safety and notification counts',async()=>{
+      const before=await call('/admin/analytics?days=7','GET',undefined,admin.cookie);
+      assert.equal(before.status,200);assert.equal(before.data.listings_by_day.length,7);
+      const {createReport}=require('../src/services/reportService');
+      const {transaction}=require('../src/services/transaction');
+      const report=await transaction(client=>createReport(client,{reporterId:student.id,listingId,reason:'Test takedown',description:'Fixture',snapshot:{title:prefix}}));
+      const decisions=await Promise.all([1,2].map(()=>call('/admin/reports/'+report.report_id,'PATCH',{status:'reviewed',resolution_note:'Confirmed misleading listing.'},admin.cookie)));
+      assert.deepEqual(decisions.map(r=>r.status).sort(),[200,409]);
+      assert.equal((await pool.query('SELECT status FROM listing WHERE listing_id=$1',[listingId])).rows[0].status,'closed');
+      const after=await call('/admin/analytics?days=7','GET',undefined,admin.cookie);
+      assert.equal(after.data.report_outcomes.listing_upheld,before.data.report_outcomes.listing_upheld+1);
+      assert.equal(typeof after.data.success_outcomes.matched_people,'number');
+      assert.equal((await call(`/admin/listings/${listingId}/safety-check`,'POST',{},student.cookie)).status,403);
+      const safety=await call(`/admin/listings/${listingId}/safety-check`,'POST',{},admin.cookie);
+      assert.equal(safety.status,200);assert.equal(typeof safety.data.risk_score,'number');assert.ok(safety.data.checked_at);
+      assert.equal((await pool.query('SELECT status FROM listing WHERE listing_id=$1',[listingId])).rows[0].status,'closed');
+      const n=(await call('/notifications','GET',undefined,student.cookie)).data;
+      assert.equal(n.unread,n.notifications.filter(x=>!x.is_read).length);
+      const result=n.notifications.find(x=>x.related_entity_id===report.report_id&&x.related_entity_type==='report');
+      assert.ok(result);
+      assert.equal((await call(`/notifications/${result.notification_id}/read`,'PATCH',{},owner.cookie)).status,404);
+      await call(`/notifications/${result.notification_id}/read`,'PATCH',{},student.cookie);
+      assert.equal((await call('/notifications','GET',undefined,student.cookie)).data.unread,n.unread-1);
+      const self=await transaction(client=>createReport(client,{reporterId:student.id,userId:admin.id,type:'user',reason:'Test self protection',description:'Fixture',snapshot:{user_id:admin.id,name:'Fixture administrator'}}));
+      assert.equal((await call('/admin/reports/'+self.report_id,'PATCH',{status:'reviewed'},admin.cookie)).status,400);
+      assert.equal((await pool.query('SELECT status FROM report WHERE report_id=$1',[self.report_id])).rows[0].status,'pending');
+      assert.equal((await call('/admin/reports/'+self.report_id,'PATCH',{status:'dismissed',resolution_note:'No action.'},admin.cookie)).status,200);
+      assert.equal((await pool.query('SELECT is_active FROM users WHERE user_id=$1',[admin.id])).rows[0].is_active,true);
+    });
+    await t.test('failed reporter notification rolls back takedown and decision',async st=>{
+      const {createReport}=require('../src/services/reportService');
+      const {transaction}=require('../src/services/transaction');
+      await pool.query("UPDATE listing SET status='available' WHERE listing_id=$1",[listingId]);
+      const report=await transaction(client=>createReport(client,{reporterId:student.id,listingId,reason:'Rollback test',description:'Fixture',snapshot:{title:prefix}}));
+      const connect=pool.connect.bind(pool);
+      const mock=st.mock.method(pool,'connect',(...args)=>args.length?connect(...args):connect().then(client=>({
+        release:()=>client.release(),query:(sql,params)=>{
+          if(/INSERT INTO notification/i.test(sql))throw new Error('Injected notification failure');
+          return client.query(sql,params);
+        }
+      })));
+      st.mock.method(console,'error',()=>{});
+      try{assert.equal((await call('/admin/reports/'+report.report_id,'PATCH',{status:'reviewed',resolution_note:'Fixture decision.'},admin.cookie)).status,500);}
+      finally{mock.mock.restore();}
+      assert.equal((await pool.query('SELECT status FROM listing WHERE listing_id=$1',[listingId])).rows[0].status,'available');
+      const stored=(await pool.query('SELECT status,resolution_action FROM report WHERE report_id=$1',[report.report_id])).rows[0];
+      assert.equal(stored.status,'pending');assert.equal(stored.resolution_action,null);
+    });
+    await t.test('dashboard counts filled homes and distinct people rather than pairs',async()=>{
+      const third=await account('third-flatmate','student');
+      await pool.query("UPDATE users SET student_type='flatmate' WHERE user_id=$1",[third.id]);
+      const metrics=async()=>(await call('/admin/analytics','GET',undefined,admin.cookie)).data.success_outcomes;
+      const before=await metrics();
+      for(const [left,right] of [[student.id,other.id],[student.id,third.id],[other.id,third.id]]){
+        await pool.query(`INSERT INTO flatmate_conversation(member_low,member_high,low_agreed,high_agreed,matched_at)
+          VALUES(LEAST($1::int,$2::int),GREATEST($1::int,$2::int),true,true,now())
+          ON CONFLICT(member_low,member_high) DO UPDATE SET low_agreed=true,high_agreed=true,matched_at=now()`,[left,right]);
+      }
+      await pool.query("UPDATE listing SET status='filled' WHERE listing_id=$1",[listingId]);
+      const after=await metrics();assert.equal(after.matched_people,before.matched_people+3);assert.equal(after.rented_homes,before.rented_homes+1);
+      await pool.query('UPDATE flatmate_conversation SET low_agreed=false,matched_at=null WHERE member_low=$1 OR member_high=$1',[third.id]);
+      assert.equal((await metrics()).matched_people,before.matched_people+2);
     });
     await t.test('deleting a listing retains useful notification and report snapshots', async () => {
       const {createReport}=require('../src/services/reportService');
