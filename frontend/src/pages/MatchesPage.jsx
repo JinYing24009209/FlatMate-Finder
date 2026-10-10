@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import FlatmateCard from '../components/FlatmateCard';
 import DateInput from '../components/DateInput';
+import SearchSections from '../components/SearchSections';
 import { api } from '../services/api';
 const empty = { q: '', location: '', maxBudget: '',studyHabits:'',lifestyle:'',moveInFrom:'',moveInTo:'' };
 export default function MatchesPage({ savedOnly = false, setPage, setSelected }) {
@@ -12,26 +13,32 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
   const [notice, setNotice] = useState('');
   const [complete, setComplete] = useState(true);
   const [saving, setSaving] = useState(null);
+  const [smartText,setSmartText]=useState(''),[searchInfo,setSearchInfo]=useState('');
+  const latest=useRef(0),lastSearch=useRef({values:empty,smart:false});
   const load = useCallback(
-    async (values = empty) => {
+    async (values = empty, smart=false) => {
+      const request=++latest.current;lastSearch.current={values,smart};
       setLoading(true);
       setError('');
       try {
         const data = await api(
-          savedOnly ? '/saved-flatmates' : `/matches?${new URLSearchParams(values)}`
+          savedOnly ? '/saved-flatmates' : `${smart?'/matches/smart-search':'/matches'}?${new URLSearchParams(values)}`
         );
+        if(request!==latest.current)return;
         setMatches(data.matches);
         setComplete(data.profile_complete);
+        setSearchInfo(smart?`${data.search_mode==='gemini'?'Gemini interpretation':'Local keyword interpretation'} · Applied filters: ${Object.entries(data.interpretation||{}).filter(([k,v])=>k!=='mode'&&v!==null&&v!==''&&(!Array.isArray(v)||v.length)).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join(' · ') || 'none recognised; showing eligible profiles'}`:'Standard filters applied.');
       } catch (e) {
-        setError(e.message);
+        if(request===latest.current)setError(e.message);
       } finally {
-        setLoading(false);
+        if(request===latest.current)setLoading(false);
       }
     },
     [savedOnly]
   );
   useEffect(() => {
     load();
+    return()=>{latest.current++;};
   }, [load]);
   const save = async (person) => {
     setSaving(person.user_id);
@@ -67,14 +74,16 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
         }
       />
       {!savedOnly && (
-        <section className="search-panel">
+        <SearchSections smartText={smartText} onSmartText={setSmartText} busy={loading}
+          onSmartSearch={()=>load({q:smartText},true)} placeholder="e.g. quiet flatmate in Auckland under $300, moving by 2026-12-01">
           <form
-            className="flatmate-search"
+            className="search-bar"
             onSubmit={(e) => {
               e.preventDefault();
               load(filters);
             }}
           >
+            <div className="search-fields">
             <input
               aria-label="Name or lifestyle"
               placeholder="Name or lifestyle, e.g. tidy"
@@ -101,6 +110,8 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
               onChange={e=>setFilters({...filters,lifestyle:e.target.value})}/>
             <label>Move-in from<DateInput value={filters.moveInFrom} onChange={e=>setFilters({...filters,moveInFrom:e.target.value})}/></label>
             <label>Move-in by<DateInput value={filters.moveInTo} onChange={e=>setFilters({...filters,moveInTo:e.target.value})}/></label>
+            </div>
+            <div className="search-actions">
             <button className="primary" disabled={loading}>
               {loading ? 'Searching…' : 'Search flatmates'}
             </button>
@@ -114,12 +125,14 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
             >
               Clear
             </button>
+            </div>
           </form>
           <p className="search-hint">
             ✦ Compatibility scores compare shared preferences. Complete your profile for more
             meaningful results. Study routine matches the entered phrase; every lifestyle tag must match a profile tag (case-insensitive). Move-in dates include both endpoints; profiles without a date are excluded when a date filter is set. Maximum budget compares the profile's minimum budget.
           </p>
-        </section>
+          {searchInfo&&<p className="notice" role="status">{searchInfo}</p>}
+        </SearchSections>
       )}
       {!complete && !savedOnly && (
         <p className="notice">
@@ -147,7 +160,7 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
       {error ? (
         <div className="empty" role="alert">
           {error}{' '}
-          <button className="outline" onClick={() => load(filters)}>
+          <button className="outline" onClick={() => load(lastSearch.current.values,lastSearch.current.smart)}>
             Try again
           </button>
         </div>

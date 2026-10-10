@@ -3,11 +3,13 @@ import PageHeader from '../components/PageHeader';
 import ListingCard from '../components/ListingCard';
 import DateInput from '../components/DateInput';
 import CitySelect from '../components/CitySelect';
+import SearchSections from '../components/SearchSections';
 import { api } from '../services/api';
 
 const emptyFilters = {
   q: '',
   city: '',
+  suburb: '',
   minRent: '',
   maxRent: '',
   roomType: '',
@@ -17,6 +19,12 @@ const emptyFilters = {
 
 export default function BrowsePage({ user, setPage, setSelected }) {
   const [filters, setFilters] = useState(emptyFilters);
+  const [smartText,setSmartText]=useState('');
+  const [areas,setAreas]=useState([]),[areaError,setAreaError]=useState('');
+  useEffect(()=>{let active=true;setAreas([]);setAreaError('');
+    if(filters.city)api(`/listings/areas?city=${encodeURIComponent(filters.city)}`).then(d=>{if(active)setAreas(d.areas);})
+      .catch(e=>{if(active)setAreaError(e.message);});return()=>{active=false;};
+  },[filters.city]);
   const [listings, setListings] = useState([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [listingsError, setListingsError] = useState('');
@@ -171,6 +179,7 @@ export default function BrowsePage({ user, setPage, setSelected }) {
 
   const clearSearch = () => {
     setFilters(emptyFilters);
+    setSmartText('');
     setHasSearched(false);
     setSearchFeedback('');
     setNotice('');
@@ -196,7 +205,9 @@ export default function BrowsePage({ user, setPage, setSelected }) {
         subtitle="Search available rooms and discover recommendations tailored to you."
       />
 
-      <section className="search-panel" aria-label="Search listings">
+      <SearchSections smartText={smartText} onSmartText={setSmartText} busy={isSearching}
+        onSmartSearch={()=>runSearch('smart',{...emptyFilters,q:smartText})}
+        placeholder="e.g. quiet furnished room in Auckland under $250 near a bus">
         <form
           className="search-bar"
           aria-busy={isSearching}
@@ -214,8 +225,12 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             />
             <CitySelect
               value={filters.city}
-              onChange={(event) => setFilters({ ...filters, city: event.target.value })}
+              onChange={(event) => setFilters({ ...filters, city: event.target.value, suburb:'' })}
             />
+            <select aria-label="Area or suburb" value={filters.suburb} disabled={!filters.city} onChange={e=>setFilters({...filters,suburb:e.target.value})}>
+              <option value="">{filters.city?'All areas':'Choose a city first'}</option>
+              {areas.map(area=><option key={area} value={area}>{area}</option>)}
+            </select>
             <input
               aria-label="Minimum weekly rent"
               type="number"
@@ -263,16 +278,10 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             <button className="primary" type="submit" disabled={isSearching}>
               {isSearching ? 'Searching…' : 'Search listings'}
             </button>
-            <button
-              className="outline"
-              type="button"
-              disabled={isSearching}
-              onClick={() => runSearch('smart')}
-            >
-              {isSearching ? 'Please wait…' : '✦ Smart search'}
-            </button>
+            <button className="text-button" type="button" onClick={clearSearch} disabled={isSearching}>Clear</button>
           </div>
         </form>
+        {areaError&&<p role="alert" className="notice">Could not load areas: {areaError}</p>}
         <p className="search-hint">
           Try a natural-language search such as “quiet furnished room near a bus route under $250”.
         </p>
@@ -290,7 +299,7 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             {searchFeedback}
           </p>
         )}
-      </section>
+      </SearchSections>
 
       {notice && <p className="notice browse-notice">{notice}</p>}
 
