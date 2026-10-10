@@ -2,6 +2,27 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const ai = require('../src/services/aiService');
 
+test('flatmate smart search validates Gemini filters and keeps ISO dates out of rent parsing', async () => {
+  const originalFetch=global.fetch,originalKey=process.env.GEMINI_API_KEY,originalMode=process.env.AI_MODE;
+  process.env.GEMINI_API_KEY='test-key';process.env.AI_MODE='gemini';
+  let payload={location:'Auckland',maxBudget:0,studyHabits:'morning',lifestyle:['quiet'],moveInFrom:'2026-11-01',moveInTo:null};
+  global.fetch=async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify(payload)}]}}]})});
+  try {
+    const gemini=await ai.enhancedFlatmateSearch('quiet Auckland morning flatmate');
+    assert.equal(gemini.mode,'gemini');assert.equal(gemini.maxBudget,0);
+    assert.equal(gemini.moveInFrom,'2026-11-01');
+    payload={maxBudget:-10};
+    const fallback=await ai.enhancedFlatmateSearch('quiet Auckland under $300 from 2026-11-01 to 2026-12-01');
+    assert.equal(fallback.mode,'local-fallback');assert.equal(fallback.maxBudget,300);
+    assert.equal(fallback.moveInFrom,'2026-11-01');assert.equal(fallback.moveInTo,'2026-12-01');
+    await assert.rejects(ai.enhancedFlatmateSearch('x'.repeat(1001)),/1000/);
+  } finally {
+    global.fetch=originalFetch;
+    if(originalKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=originalKey;
+    if(originalMode===undefined)delete process.env.AI_MODE;else process.env.AI_MODE=originalMode;
+  }
+});
+
 test('smart search understands rent, city, lifestyle and transport', () => {
   const result = ai.parseNaturalLanguageSearch(
     'Quiet furnished single room in Auckland under $250 near a bus'
