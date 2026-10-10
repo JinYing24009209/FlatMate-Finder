@@ -20,6 +20,7 @@ import OutcomesPage from './pages/OutcomesPage';
 import PaymentPage from './pages/PaymentPage';
 import './styles/app.css';
 import './styles/outcomes.css';
+import './styles/moderation.css';
 import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [focusEnquiry, setFocusEnquiry] = useState(null);
+  const [focusTarget,setFocusTarget]=useState(null);
   const [loading, setLoading] = useState(true);
   const [navigationHistory, setNavigationHistory] = useState([]);
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function App() {
   }, []);
 
   const setPage = (next, options = {}) => {
+    setFocusTarget(options.focusTarget||null);
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     next = resolveAccountPage(user, next);
     const nextFocus = next === 'Enquiries' ? options.enquiryId || focusEnquiry : null;
@@ -172,8 +175,7 @@ export default function App() {
     setPageState('Dashboard');
   };
   const pages = {
-    Dashboard: <DashboardPage user={user} setPage={setPage} />,
-    'Admin home': <DashboardPage user={user} setPage={setPage} />,
+    Dashboard: <DashboardPage user={user} setPage={setPage} setSelected={setSelected} />,
     'Browse listings': <BrowsePage user={user} setPage={setPage} setSelected={setSelected} />,
     'Listing detail': (
       <ListingDetailPage
@@ -202,8 +204,8 @@ export default function App() {
       <FlatmateDetailPage key={selected?.user_id} person={selected} setPage={setPage} />
     ),
     'Create listing': <ListingFormPage editing={editing} setPage={setPage} />,
-    'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} />,
-    'Platform management': <AdminPage setPage={setPage} setSelected={setSelected} />,
+    'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} focusTarget={focusTarget} />,
+    'Platform management': <AdminPage setPage={setPage} setSelected={setSelected} focusTarget={focusTarget} />,
     'Report target': <ReportTargetPage target={selected} setPage={setPage} />,
   };
   const activePage = resolveAccountPage(user, page);
