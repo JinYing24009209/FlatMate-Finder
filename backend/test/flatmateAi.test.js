@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const mod = require.resolve('../src/services/aiService');
+// Reload the feature module that owns the cache; production callers still use aiService.
+const mod = require.resolve('../src/services/aiFlatmateRecommendation');
 const prefs = {
   preferred_location: 'Albany',
   budget_min: 150,
