@@ -10,7 +10,8 @@ async function migrate() {
   await pool.query(sql);
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'community-upgrade.sql'), 'utf8'));
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'outcomes-upgrade.sql'), 'utf8'));
-  console.log('Database upgrade completed, including mutual agreements and payment snapshots.');
+  await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'moderation-upgrade.sql'), 'utf8'));
+  console.log('Database upgrade completed, including agreements, payments and moderation actions.');
   await pool.end();
 }
 
