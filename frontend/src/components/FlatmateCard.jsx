@@ -11,14 +11,14 @@ export default function FlatmateCard({ flatmate, onOpen, onSave, busy = false })
         <div className="people-photo">
           <ProfilePhoto src={flatmate.profile_photo} name={flatmate.full_name} />
           <span className="people-score">
-            ✦ {score == null ? 'Complete preferences' : `${score}% match`}
+            {flatmate.mutually_agreed?'✓ Both agreed':`✦ ${score == null ? 'Complete preferences' : `${score}% match`}`}
           </span>
         </div>
         <div className="people-copy">
           <p className="people-location">{flatmate.preferred_location || 'Location flexible'}</p>
           <h2>{flatmate.full_name}</h2>
           <p className="muted">
-            {score == null
+            {flatmate.mutually_agreed ? 'Mutually confirmed flatmates' : score == null
               ? 'Add preferences to compare'
               : flatmate.score_source === 'gemini'
                 ? 'Gemini AI matching'
@@ -44,14 +44,14 @@ export default function FlatmateCard({ flatmate, onOpen, onSave, busy = false })
         <button className="text-button" onClick={() => onOpen(flatmate)}>
           View details →
         </button>
-        <button
+        {onSave && <button
           className={`save-button ${flatmate.is_saved ? 'saved' : ''}`}
           aria-pressed={!!flatmate.is_saved}
           disabled={busy}
           onClick={() => onSave(flatmate)}
         >
           {flatmate.is_saved ? '♥ Saved' : '♡ Save'}
-        </button>
+        </button>}
       </div>
     </article>
   );

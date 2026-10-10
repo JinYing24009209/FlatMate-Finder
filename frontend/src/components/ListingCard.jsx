@@ -1,10 +1,11 @@
-export default function ListingCard({ listing, onOpen, onSave, recommendation, saved = false }) {
+export default function ListingCard({ listing, onOpen, onSave, recommendation, saved = false, paid = false }) {
   const photo = listing.photos?.[0];
   const unavailable = listing.status && listing.status !== 'available';
   const statusLabels = {
     shortlisted: 'Temporarily reserved',
     filled: 'Rented / no longer available',
     closed: 'Listing closed',
+    removed: 'Listing removed · payment record retained',
   };
   return (
     <article className={`listing-card ${unavailable ? 'listing-unavailable' : ''}`}>
@@ -26,7 +27,7 @@ export default function ListingCard({ listing, onOpen, onSave, recommendation, s
         </div>
         {unavailable && (
           <p className="availability-warning">
-            This saved home is still in your shortlist, but it cannot currently accept new enquiries.
+            {paid?'Your payment succeeded. This listing is shown for your records.':'This home cannot currently accept new enquiries.'}
           </p>
         )}
         {recommendation && (
