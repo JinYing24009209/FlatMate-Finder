@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 
-export default function ListingDetailPage({ listing, user, setPage, onSignIn, onCheckout }) {
+export default function ListingDetailPage({ listing, user, setPage, onSignIn, onCheckout, adminReview=false }) {
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState('');
   const [summary, setSummary] = useState('');
@@ -116,6 +116,8 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
 
   return (
     <main className="content">
+      {adminReview&&<><button className="text-button" onClick={()=>setPage('Platform management')}>← Back to reports</button>
+        <p className="notice">Reported listing · Administrator-only review. Availability is shown for moderation, not booking.</p></>}
       <PageHeader
         title={listing.title}
         subtitle={`${listing.suburb || listing.address}, ${listing.city}`}
@@ -183,9 +185,9 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
           <p className="lead-copy">
             {listing.description || 'The advertiser has not added a description yet.'}
           </p>
-          <button className="outline" onClick={summarise}>
+          {!adminReview&&<button className="outline" onClick={summarise}>
             ✦ Summarise this listing
-          </button>
+          </button>}
           {summary && (
             <div className="ai-summary">
               <span>AI SUMMARY · {summaryMode === 'gemini' ? 'GEMINI' : 'LOCAL FALLBACK'}</span>
@@ -218,7 +220,9 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
         <aside className="contact-card">
           <span className="eyebrow">ADVERTISER</span>
           <h3>{listing.advertiser_name}</h3>
-          {user?.role === 'student' ? (
+          {adminReview ? <><h3>Report review</h3><p>Listing #{listing.listing_id}</p><p>Current status: {listing.status}</p>
+            <p className="muted">Compare these details with the report evidence. This view does not send enquiries or process payments.</p>
+            <button className="outline wide" onClick={()=>setPage('Platform management')}>Return to report management</button></> : user?.role === 'student' ? (
             <>
               <textarea
                 value={message}
@@ -275,7 +279,7 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
             </>
           )}
           {notice && <p className="notice">{notice}</p>}
-          {user && (
+          {user && !adminReview && !listing.removed && (
             <>
               <hr />
               <button className="text-button danger-link" onClick={() => setReporting(!reporting)}>
@@ -304,8 +308,8 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
               )}
             </>
           )}
-          <button className="text-button" onClick={() => setPage('Browse listings')}>
-            ← Back to results
+          <button className="text-button" onClick={() => setPage(adminReview?'Platform management':'Browse listings')}>
+            {adminReview?'← Back to reports':'← Back to results'}
           </button>
         </aside>
       </div>

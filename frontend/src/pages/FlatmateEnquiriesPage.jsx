@@ -4,12 +4,20 @@ import PageHeader from '../components/PageHeader';
 import ReportForm from '../components/ReportForm';
 import { api } from '../services/api';
 
-function FlatmateChat({ conversation, user, onRead }) {
+function FlatmateChat({ conversation, user, onRead, onAgreement }) {
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [agreeBusy,setAgreeBusy]=useState(false);
+  const agree=async()=>{
+    if(agreeBusy)return;
+    setAgreeBusy(true);setError('');
+    try{const result=await api(`/flatmate-conversations/${conversation.conversation_id}/agreement`,{
+      method:'PATCH',body:JSON.stringify({agreed:!conversation.my_agreed})});onAgreement(conversation.conversation_id,result);
+    }catch(e){setError(e.message);}finally{setAgreeBusy(false);}
+  };
   const bottom = useRef(null);
   const id = conversation.conversation_id;
   useEffect(() => {
@@ -73,6 +81,16 @@ function FlatmateChat({ conversation, user, onRead }) {
         <div>
           <b>{conversation.full_name}</b>
           <span>Private flatmate conversation</span>
+          <span>{conversation.my_agreed&&conversation.other_agreed?'✓ Both agreed — matched flatmates':'A match requires both people to agree.'}</span>
+        </div>
+        <div className="agreement-controls">
+          <button className={`outline ${conversation.my_agreed?'agreed':''}`} aria-pressed={!!conversation.my_agreed} disabled={agreeBusy} onClick={agree}>
+            {agreeBusy?'Saving…':`You: ${conversation.my_agreed?'Agreed':'Not agreed'}`}
+          </button>
+          <button className={`outline ${conversation.other_agreed?'agreed':''}`} disabled title="Only your partner can change their agreement">
+            {conversation.full_name}: {conversation.other_agreed?'Agreed':'Not agreed'}
+          </button>
+          <small>You can change only your own choice. Withdrawing removes this mutual match.</small>
         </div>
       </div>
       <div className="messages" aria-label="Conversation messages">
@@ -146,6 +164,7 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
   const onRead = useCallback((id) =>
     setItems((old) => old.map((x) => (x.conversation_id === id ? { ...x, unread_count: 0 } : x)))
   , []);
+  const onAgreement=useCallback((id,result)=>setItems(old=>old.map(x=>x.conversation_id===id?{...x,...result}:x)),[]);
   const current = items.find((x) => x.conversation_id === selected) || items[0];
   return (
     <main className="content">
@@ -182,6 +201,7 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
               conversation={current}
               user={user}
               onRead={onRead}
+              onAgreement={onAgreement}
             />
           )}
         </div>
