@@ -1,256 +1,341 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { formatDateTime } from '../utils/dates';
-import '../styles/community.css';
 import { api } from '../services/api';
-export default function AdminPage({setPage,setSelected}) {
-  const [reports, setReports] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [listings, setListings] = useState([]);
-  const [code, setCode] = useState('');
-  const [notice, setNotice] = useState('');
-  const [outcomes, setOutcomes] = useState({});
-  const [tab, setTab] = useState('reports');
-  const [days, setDays] = useState(30);
-  const [analytics, setAnalytics] = useState(null);
-  const [loadError, setLoadError] = useState('');
+import '../styles/community.css';
+
+export default function AdminPage({ setPage, setSelected, focusTarget }) {
+  const [reports, setReports] = useState([]),
+        [users, setUsers] = useState([]),
+        [listings, setListings] = useState([]);
+  const [tab, setTab] = useState('reports'),
+        [notice, setNotice] = useState(''),
+        [error, setError] = useState('');
+  const [outcomes, setOutcomes] = useState({}),
+        [code, setCode] = useState(''),
+        [busy, setBusy] = useState(null);
+  const [checks, setChecks] = useState({}),
+        [checking, setChecking] = useState(false);
+  const live = useRef(false),
+        running = useRef(false);
+  const positioned = useRef(null);
+
   const load = useCallback(async () => {
-      const results = await Promise.allSettled([
-        api('/admin/reports'),
-        api('/admin/users'),
-        api('/admin/listings'),
-        api(`/admin/analytics?days=${days}`),
-      ]);
-      const setters = [
-        (data) => setReports(data.reports),
-        (data) => setUsers(data.users),
-        (data) => setListings(data.listings),
-        setAnalytics,
-      ];
-      const labels = ['Safety reports', 'User accounts', 'Listing status', 'Analytics'];
-      const errors = [];
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') setters[index](result.value);
-        else errors.push(`${labels[index]}: ${result.reason.message}`);
-      });
-      setLoadError(errors.join(' · '));
-  }, [days]);
+    const result = await Promise.allSettled([
+      api('/admin/reports'),
+      api('/admin/users'),
+      api('/admin/listings')
+    ]);
+    if (!live.current) return;
+    const setters = [
+      d => setReports(d.reports),
+      d => setUsers(d.users),
+      d => setListings(d.listings)
+    ];
+    const failures = [];
+    result.forEach((r, i) =>
+      r.status === 'fulfilled' ? setters[i](r.value) : failures.push(r.reason.message)
+    );
+    setError(failures.join(' · '));
+  }, []);
+
   useEffect(() => {
+    live.current = true;
     load();
-    const timer = window.setInterval(load, 30000);
-    return () => window.clearInterval(timer);
+    const t = setInterval(load, 30000);
+    return () => {
+      live.current = false;
+      clearInterval(t);
+    };
   }, [load]);
-  const invite = async (e) => {
-    e.preventDefault();
+
+  useEffect(() => {
+    if (focusTarget?.type === 'report') setTab('reports');
+  }, [focusTarget]);
+
+  useEffect(() => {
+    if (tab === 'reports' && focusTarget?.type === 'report' && positioned.current !== focusTarget) {
+      const element = document.getElementById(`admin-report-${focusTarget.id}`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element?.focus({ preventScroll: true });
+      if (element) positioned.current = focusTarget;
+    }
+  }, [tab, focusTarget, reports]);
+
+  const act = async (key, operation) => {
+    if (busy) return;
+    setBusy(key);
+    setNotice('');
     try {
-      await api('/admin/invites', { method: 'POST', body: JSON.stringify({ code }) });
-      setNotice(`Invitation “${code}” created for authorised staff.`);
-      setCode('');
-      load();
-    } catch (err) {
-      setNotice(err.message);
+      await operation();
+      await load();
+    } catch (e) {
+      setNotice(e.message);
+    } finally {
+      setBusy(null);
     }
   };
-  const review = async (id, status) => {
-    if (!outcomes[id]?.trim()) return setNotice('Please explain the outcome for the reporter.');
-    try {
-      await api(`/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status, resolution_note: outcomes[id] }) });
-      setNotice('Report processed. The reporter has been notified.');
-      load();
-    } catch (error) { setNotice(error.message); }
-  };
-  const toggleUser = async (user) => {
-    await api(`/admin/users/${user.user_id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ is_active: !user.is_active }),
+
+  const review = (report, status) => {
+    if (!outcomes[report.report_id]?.trim()) {
+      setNotice('Please explain the decision for the reporter.');
+      return;
+    }
+    const action = report.target_type === 'listing' ? 'take down this listing' : 'deactivate this user';
+    if (status === 'reviewed' && !window.confirm(`Uphold this report and ${action}?`)) return;
+    act(`report-${report.report_id}`, async () => {
+      await api(`/admin/reports/${report.report_id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, resolution_note: outcomes[report.report_id] })
+      });
+      setNotice('Decision saved and reporter notified.');
     });
-    load();
   };
-  const setStatus = async (id, status) => {
-    await api(`/admin/listings/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-    load();
+
+  const checkAll = async () => {
+    if (running.current) return;
+    running.current = true;
+    setChecking(true);
+    setChecks({});
+    for (const item of listings) {
+      if (!live.current) break;
+      setChecks(old => ({ ...old, [item.listing_id]: { loading: true } }));
+      try {
+        const result = await api(`/admin/listings/${item.listing_id}/safety-check`, { method: 'POST' });
+        if (live.current) setChecks(old => ({ ...old, [item.listing_id]: result }));
+      } catch (e) {
+        if (live.current) setChecks(old => ({ ...old, [item.listing_id]: { error: e.message } }));
+      }
+    }
+    running.current = false;
+    if (live.current) setChecking(false);
   };
+
   return (
-    <main className="content">
+    <main className="content management-page">
       <PageHeader
         title="Platform management"
-        subtitle="Track real platform outcomes and manage reports, people, homes and staff access."
+        subtitle="Review safety signals, resolve reports and manage accounts, listings and staff access."
       />
-      {loadError && <p className="notice" role="alert">{loadError}</p>}
-      {analytics && (
-        <section className="analytics-panel" aria-label="Live platform analytics">
-          <div className="analytics-heading">
-            <div>
-              <span className="eyebrow">LIVE DATABASE RESULTS</span>
-              <h2>Platform outcomes</h2>
-              <p className="muted">{analytics.range.from} to {analytics.range.to} · refreshed {new Date(analytics.generated_at).toLocaleTimeString()}</p>
-            </div>
-            <div className="range-buttons" aria-label="Analytics date range">
-              {[7, 30, 90].map((value) => (
-                <button key={value} className={days === value ? 'selected' : ''} onClick={() => setDays(value)}>{value} days</button>
-              ))}
-            </div>
-          </div>
-          <div className="analytics-grid">
-            <article className="chart-card chart-wide">
-              <h3>New listings by day</h3>
-              <p className="muted">Publication activity in the selected period</p>
-              <div className="vertical-chart">
-                {analytics.listings_by_day.map((item) => {
-                  const max = Math.max(1, ...analytics.listings_by_day.map((x) => x.listings));
-                  return <div className="vertical-bar-wrap" key={item.day} title={`${item.day}: ${item.listings} listings`}>
-                    <span>{item.listings || ''}</span><i style={{ height: `${Math.max(3, item.listings / max * 100)}%` }} />
-                  </div>;
-                })}
-              </div>
-            </article>
-            <article className="chart-card">
-              <h3>Listing availability</h3>
-              <div className="horizontal-chart">
-                {analytics.listing_statuses.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.listing_statuses.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
-              </div>
-            </article>
-            <article className="chart-card">
-              <h3>What students need</h3>
-              <div className="horizontal-chart needs-chart">
-                {analytics.student_needs.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.student_needs.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
-              </div>
-            </article>
-            <article className="chart-card">
-              <h3>Enquiry outcomes</h3>
-              <div className="horizontal-chart outcome-chart">
-                {analytics.enquiry_outcomes.map((item) => <div key={item.label}><span>{item.label}</span><i style={{ width: `${item.value / Math.max(1, ...analytics.enquiry_outcomes.map((x) => x.value)) * 100}%` }} /><b>{item.value}</b></div>)}
-              </div>
-            </article>
-            <article className="chart-card engagement-card">
-              <h3>Flatmate engagement</h3>
-              <div><b>{analytics.flatmate_engagement.visible_seekers}</b><span>visible seekers</span></div>
-              <div><b>{analytics.flatmate_engagement.conversations}</b><span>conversations started</span></div>
-              <div><b>{analytics.flatmate_engagement.messages}</b><span>messages exchanged</span></div>
-            </article>
-          </div>
-        </section>
-      )}
-      {notice && <p className="notice">{notice}</p>}
+      {error && <p className="notice" role="alert">{error}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
+
       <div className="tabs admin-tabs">
-        {['reports', 'users', 'listings', 'access'].map((x) => (
-          <button key={x} className={tab === x ? 'selected' : ''} onClick={() => setTab(x)}>
-            {{ reports: 'Safety reports', users: 'User accounts', listings: 'Listing status', access: 'Staff access' }[x]}
+        {Object.entries({
+          reports: 'Safety reports',
+          users: 'User accounts',
+          listings: 'Listing status',
+          access: 'Staff access'
+        }).map(([key, label]) => (
+          <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}>
+            {label}
           </button>
         ))}
       </div>
+
       {tab === 'reports' && (
         <section>
-          <h2>Safety & community reports</h2>
+          <h2 className="management-section-title">Safety & community reports</h2>
           <div className="stack">
-            {reports.map((report) => (
-              <article className="row-card" key={report.report_id}>
+            {reports.map(r => (
+              <article
+                tabIndex={-1}
+                id={`admin-report-${r.report_id}`}
+                className={`row-card ${String(focusTarget?.id) === String(r.report_id) ? 'focused-record' : ''}`}
+                key={r.report_id}
+              >
                 <div>
-                  <b>{report.reason}</b>
-                  <p>
-                    {report.reporter_name} · {report.target_type} · {report.listing_title || report.reported_user_name || report.target_snapshot?.title || report.target_snapshot?.name || 'Removed target'}
-                  </p>
-                  <p className="muted">{report.description}</p>
-                  <button className="outline" onClick={()=>{
-                    const isListing=report.target_type==='listing';
-                    const id=isListing?report.listing_id:report.reported_user_id;
-                    if(!id){setNotice('This target was deleted. Its report snapshot is retained.');return;}
-                    setSelected({targetType:isListing?'listing':'user',id});setPage('Report target');
-                  }}>View reported {report.target_type==='listing'?'listing':'user'}</button>
-                  {report.evidence?.body && <blockquote className="report-evidence">{report.evidence.body}</blockquote>}
-                  {report.evidence?.sent_at && <p className="muted">Message #{report.evidence.message_id} · conversation #{report.evidence.conversation_id} · {formatDateTime(report.evidence.sent_at)}</p>}
-                  {report.evidence?.note && <p>Evidence note: {report.evidence.note}</p>}
-                  {report.resolution_note && <p>Outcome: {report.resolution_note}</p>}
-                  {report.status === 'pending' && <label>Outcome shared with reporter<textarea maxLength={1000} value={outcomes[report.report_id] || ''} onChange={(e) => setOutcomes({ ...outcomes, [report.report_id]: e.target.value })} /></label>}
+                  <h3>{r.reason}</h3>
+                  <p>Report #{r.report_id} · {r.reporter_name} · {r.target_type}</p>
+                  <p>{r.listing_title || r.reported_user_name || r.target_snapshot?.title || r.target_snapshot?.name || 'Removed target'}</p>
+                  <p className="muted">{r.description}</p>
+                  <button
+                    className="outline"
+                    onClick={() => {
+                      const listing = r.target_type === 'listing',
+                            id = listing ? r.listing_id : r.reported_user_id;
+                      if (!id) {
+                        setNotice('This target was deleted; its report snapshot is retained.');
+                        return;
+                      }
+                      setSelected({ targetType: listing ? 'listing' : 'user', id });
+                      setPage('Report target');
+                    }}
+                  >
+                    View reported {r.target_type === 'listing' ? 'listing' : 'user'}
+                  </button>
+                  {r.evidence?.body && <blockquote className="report-evidence">{r.evidence.body}</blockquote>}
+                  {r.evidence?.sent_at && (
+                    <p className="muted">Message #{r.evidence.message_id} · {formatDateTime(r.evidence.sent_at)}</p>
+                  )}
+                  {r.evidence?.note && <p>Evidence: {r.evidence.note}</p>}
+                  {r.resolution_note && <p>Outcome: {r.resolution_note}</p>}
+                  {r.status === 'pending' && (
+                    <label className="report-decision">
+                      Decision shared with reporter
+                      <textarea
+                        maxLength={1000}
+                        value={outcomes[r.report_id] || ''}
+                        onChange={e => setOutcomes({ ...outcomes, [r.report_id]: e.target.value })}
+                      />
+                    </label>
+                  )}
                 </div>
-                {report.status === 'pending' ? (
+                {r.status === 'pending' ? (
                   <div className="button-row">
-                    <button
-                      className="outline"
-                      onClick={() => review(report.report_id, 'reviewed')}
-                    >
-                      Mark reviewed
+                    <button disabled={!!busy} className="danger-button" onClick={() => review(r, 'reviewed')}>
+                      {r.target_type === 'listing' ? 'Take down listing' : 'Deactivate user'}
                     </button>
-                    <button
-                      className="danger-button"
-                      onClick={() => review(report.report_id, 'dismissed')}
-                    >
+                    <button disabled={!!busy} className="outline" onClick={() => review(r, 'dismissed')}>
                       Dismiss
                     </button>
                   </div>
                 ) : (
-                  <span className={`status ${report.status}`}>{report.status}</span>
+                  <span className={`status ${r.status}`}>
+                    {r.resolution_action ? 'Upheld' : r.status === 'reviewed' ? 'Reviewed (legacy)' : r.status}
+                  </span>
                 )}
               </article>
             ))}
           </div>
-          {!reports.length && <div className="empty">No reports have been submitted.</div>}
+          {!reports.length && <div className="empty">No reports submitted.</div>}
         </section>
       )}
+
       {tab === 'users' && (
         <section>
-          <h2>User accounts</h2>
+          <h2 className="management-section-title">All user accounts</h2>
           <div className="stack">
-            {users.map((user) => (
-              <article className="row-card" key={user.user_id}>
+            {users.map(u => (
+              <article className="row-card" key={u.user_id}>
                 <div>
-                  <b>{user.full_name}</b>
-                  <p>
-                    {user.email} · {user.role}
-                  </p>
+                  <h3>{u.full_name}</h3>
+                  <p>{u.email} · {u.role}</p>
                 </div>
                 <button
-                  className={user.is_active ? 'danger-button' : 'outline'}
-                  onClick={() => toggleUser(user)}
+                  disabled={!!busy}
+                  className={u.is_active ? 'danger-button' : 'outline'}
+                  onClick={() =>
+                    act(`user-${u.user_id}`, () =>
+                      api(`/admin/users/${u.user_id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ is_active: !u.is_active })
+                      })
+                    )
+                  }
                 >
-                  {user.is_active ? 'Deactivate' : 'Reactivate'}
+                  {u.is_active ? 'Deactivate' : 'Reactivate'}
                 </button>
               </article>
             ))}
           </div>
         </section>
       )}
+
       {tab === 'listings' && (
         <section>
-          <h2>All listings</h2>
+          <div className="management-heading">
+            <h2 className="management-section-title">All listings</h2>
+            <button className="outline" disabled={checking || !listings.length} onClick={checkAll}>
+              {checking ? 'Checking listings…' : '✦ AI safety check'}
+            </button>
+          </div>
+          <p className="muted">
+            Checks do not change availability. Review the signals before choosing a status. Grey means unchecked or failed, not safe.
+          </p>
           <div className="stack">
-            {listings.map((item) => (
-              <article className="row-card" key={item.listing_id}>
-                <div>
-                  <b>{item.title}</b>
-                  <p>
-                    ${item.rent}/wk · {item.advertiser_name}
-                  </p>
-                </div>
-                <select
-                  className="compact-select"
-                  value={item.status}
-                  onChange={(e) => setStatus(item.listing_id, e.target.value)}
-                >
-                  <option value="available">Available</option>
-                  <option value="shortlisted">Shortlisted</option>
-                  <option value="filled">Filled</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </article>
-            ))}
+            {listings.map(item => {
+              const result = checks[item.listing_id];
+              const level = !result || result.loading || result.error
+                ? 'unknown'
+                : result.risk_score >= 67
+                ? 'high'
+                : result.risk_score >= 34 || !result.safe
+                ? 'medium'
+                : 'low';
+              const label = { unknown: 'Not assessed', high: 'High risk', medium: 'Needs review', low: 'Lower risk' }[level];
+              return (
+                <article className="listing-review-card" key={item.listing_id}>
+                  <div className="row-card">
+                    <div>
+                      <h3>{item.title}</h3>
+                      <p>${item.rent}/wk · {item.advertiser_name}</p>
+                    </div>
+                    <div className="listing-controls">
+                      <select
+                        aria-label={`Status for ${item.title}`}
+                        disabled={!!busy}
+                        value={item.status}
+                        onChange={e =>
+                          act(`listing-${item.listing_id}`, () =>
+                            api(`/admin/listings/${item.listing_id}`, {
+                              method: 'PATCH',
+                              body: JSON.stringify({ status: e.target.value })
+                            })
+                          )
+                        }
+                      >
+                        {['available', 'shortlisted', 'filled', 'closed'].map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <span className={`risk-indicator ${level}`} title={label}><i />{label}</span>
+                    </div>
+                  </div>
+                  {result && (
+                    <div className={`safety-result ${level}`} role="status">
+                      {result.loading ? (
+                        'Checking…'
+                      ) : result.error ? (
+                        <p>Unable to assess: {result.error}</p>
+                      ) : (
+                        <>
+                          <strong>{label} · {result.risk_score}/100</strong>
+                          <p>
+                            {result.mode === 'gemini' ? 'Gemini safety assessment' : 'Local safety fallback'} · {formatDateTime(result.checked_at)}
+                          </p>
+                          <ul>
+                            {(result.flags?.length
+                              ? result.flags
+                              : ['No listed risk signals found; this is not a safety guarantee.']
+                            ).map((flag, i) => <li key={i}>{flag}</li>)}
+                          </ul>
+                          <p>AI advice is not proof. Check the listing before taking action.</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
+
       {tab === 'access' && (
         <section className="admin-invite">
-          <h2>Administrator access</h2>
-          <p className="muted">
-            Create a single-use internal invitation. Never publish access codes.
-          </p>
-          <form onSubmit={invite}>
+          <h2 className="management-section-title">Administrator access</h2>
+          <p>Create a single-use invitation. Never publish access codes.</p>
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              act('invite', async () => {
+                await api('/admin/invites', {
+                  method: 'POST',
+                  body: JSON.stringify({ code })
+                });
+                setCode('');
+                setNotice('Staff invitation created.');
+              });
+            }}
+          >
             <input
-              placeholder="e.g. STAFF-2026-01"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
               required
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              placeholder="Internal invitation code"
             />
-            <button className="primary">Create invite</button>
+            <button className="primary" disabled={!!busy}>Create invite</button>
           </form>
         </section>
       )}
