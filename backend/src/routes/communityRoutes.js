@@ -228,7 +228,7 @@ router.get(
       'SELECT * FROM notification WHERE user_id=$1 ORDER BY created_at DESC',
       [req.user.userId]
     );
-    res.json({ notifications: rows });
+    res.json({ notifications: rows, unread: rows.filter(item=>!item.is_read).length });
   })
 );
 
@@ -237,10 +237,11 @@ router.patch(
   '/notifications/:id/read',
   auth,
   asyncRoute(async (req, res) => {
-    await pool.query(
-      'UPDATE notification SET is_read=true WHERE notification_id=$1 AND user_id=$2',
+    const result=await pool.query(
+      'UPDATE notification SET is_read=true WHERE notification_id=$1 AND user_id=$2 RETURNING notification_id',
       [req.params.id, req.user.userId]
     );
+    if(!result.rowCount)return fail(res,404,'Notification not found.');
     res.json({ message: 'Notification read.' });
   })
 );

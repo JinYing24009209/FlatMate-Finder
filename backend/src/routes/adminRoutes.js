@@ -5,10 +5,21 @@ const { asyncRoute } = require('../middleware/errorHandler');
 const {transaction}=require('../services/transaction');
 const {notify,notifyListingChange}=require('../services/notificationService');
 const v=require('../services/validation');
+const {enhancedSafetyCheck}=require('../services/aiService');
+const {aiRateLimit}=require('../middleware/aiRateLimit');
 router.use(auth, allow('admin'));
+router.post('/listings/:id/safety-check',aiRateLimit,asyncRoute(async(req,res)=>{
+  if(!Number.isSafeInteger(Number(req.params.id))||Number(req.params.id)<=0)
+    return fail(res,400,'Invalid listing ID.');
+  const {rows:[listing]}=await pool.query('SELECT * FROM listing WHERE listing_id=$1',[req.params.id]);
+  if(!listing)
+    return fail(res,404,'Listing not found.');
+  res.json({...await enhancedSafetyCheck(listing),checked_at:new Date().toISOString()});
+}));
 router.get('/users/:id', asyncRoute(async(req,res)=>{
   const {rows:[user]}=await pool.query(`SELECT u.user_id,u.full_name,u.role,u.is_active,u.student_type,
-    p.profile_photo,p.contact_preference,p.visible_for_matching,p.about_me,p.advertiser_bio,p.preferred_location,p.study_habits,p.lifestyle_tags,p.move_in_date,
+    p.profile_photo,p.contact_preference,p.visible_for_matching,p.about_me,p.advertiser_bio,p.preferred_location,
+    p.study_habits,p.lifestyle_tags,p.move_in_date,
     p.budget_min,p.budget_max FROM users u LEFT JOIN profiles p USING(user_id) WHERE u.user_id=$1`,[req.params.id]);
   if(!user)
     return fail(res,404,'This user no longer exists. The report snapshot remains available.');
@@ -45,7 +56,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const requestedDays = Number(req.query.days);
     const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
-    const [activity, statuses, studentNeeds, enquiries, flatmateEngagement] =
+    const [activity, statuses, studentNeeds, enquiries, reportOutcomes, successes] =
       await Promise.all([
         pool.query(
           `SELECT to_char(calendar.report_date::date,'YYYY-MM-DD') AS "day",
@@ -67,12 +78,17 @@ router.get(
           `SELECT status::text label, count(*)::int value FROM enquiry GROUP BY status ORDER BY status`
         ),
         pool.query(
-          `SELECT
-             (SELECT count(*)::int FROM flatmate_conversation) conversations,
-             (SELECT count(*)::int FROM flatmate_message) messages,
-             (SELECT count(*)::int FROM profiles p JOIN users u ON u.user_id=p.user_id
-               WHERE u.student_type='flatmate' AND p.visible_for_matching) visible_seekers`
+          `SELECT count(*)::int total,
+            count(*) FILTER(WHERE resolution_action='close_listing')::int listing_upheld,
+            count(*) FILTER(WHERE resolution_action='deactivate_user')::int user_upheld
+            FROM report`
         ),
+        pool.query(`SELECT (SELECT count(*)::int FROM listing WHERE status='filled') rented_homes,
+          (SELECT count(DISTINCT u.user_id)::int FROM flatmate_conversation c
+           JOIN users u ON u.user_id IN(c.member_low,c.member_high)
+           JOIN users a ON a.user_id=c.member_low JOIN users b ON b.user_id=c.member_high
+           WHERE c.low_agreed AND c.high_agreed AND a.is_active AND b.is_active
+           AND a.role='student' AND b.role='student' AND a.student_type='flatmate' AND b.student_type='flatmate') matched_people`),
       ]);
     res.json({
       range: {
@@ -87,7 +103,8 @@ router.get(
         label: item.label === 'flatmate' ? 'Seeking a flatmate' : 'Seeking a room',
       })),
       enquiry_outcomes: enquiries.rows,
-      flatmate_engagement: flatmateEngagement.rows[0],
+      report_outcomes: reportOutcomes.rows[0],
+      success_outcomes: successes.rows[0],
       generated_at: new Date().toISOString(),
     });
   })
@@ -179,14 +196,27 @@ router.patch(
       (req.body.status==='dismissed'?'The report was dismissed after review.':'The report has been reviewed by an administrator.');
     const report=await transaction(async client=>{
       const {rows:[old]}=await client.query('SELECT * FROM report WHERE report_id=$1 FOR UPDATE',[req.params.id]);
-      if(!old)
-        throw v.invalid('Report not found.',404);
-      if(old.status!=='pending')
-        throw v.invalid('This report has already been processed; its original review is preserved.',409);
-      const {rows:[updated]}=await client.query(`UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now(),resolution_note=$4
-        WHERE report_id=$3 RETURNING *`,[req.body.status,req.user.userId,req.params.id,note]);
-      await notify(updated.reporter_id,'report_result',`Report #${updated.report_id} ${updated.status}: 
-        ${note}`.slice(0,500),'report',updated.report_id,client);
+      if(!old)throw v.invalid('Report not found.',404);
+      if(old.status!=='pending')throw v.invalid('This report has already been processed; its original review is preserved.',409);
+      let action=null;
+      if(req.body.status==='reviewed'){
+        if(old.target_type==='listing'){
+          const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[old.listing_id]);
+          if(!before)throw v.invalid('This listing was deleted. Dismiss the report with an explanation instead.',409);
+          const {rows:[after]}=await client.query("UPDATE listing SET status='closed',updated_at=now() WHERE listing_id=$1 RETURNING *",[old.listing_id]);
+          await notifyListingChange(client,before,after);
+          action='close_listing';
+        }else{
+          if(old.reported_user_id===req.user.userId)throw v.invalid('You cannot deactivate your own administrator account.',400);
+          const {rows:[target]}=await client.query('UPDATE users SET is_active=false WHERE user_id=$1 RETURNING user_id',[old.reported_user_id]);
+          if(!target)throw v.invalid('This user was deleted. Dismiss the report with an explanation instead.',409);
+          action='deactivate_user';
+        }
+      }
+      const outcome=action?`${action==='close_listing'?'Listing taken down.':'User deactivated.'} ${note}`:note;
+      const {rows:[updated]}=await client.query(`UPDATE report SET status=$1,reviewed_by=$2,reviewed_at=now(),resolution_note=$4,resolution_action=$5
+        WHERE report_id=$3 RETURNING *`,[req.body.status,req.user.userId,req.params.id,outcome,action]);
+      await notify(updated.reporter_id,'report_result',`Report #${updated.report_id} ${updated.status}: ${outcome}`.slice(0,500),'report',updated.report_id,client);
       return updated;
     });
     res.json({ message: 'Report reviewed.', report });
