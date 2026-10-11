@@ -11,7 +11,8 @@ async function migrate() {
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'community-upgrade.sql'), 'utf8'));
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'outcomes-upgrade.sql'), 'utf8'));
   await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'moderation-upgrade.sql'), 'utf8'));
-  console.log('Database upgrade completed, including agreements, payments and moderation actions.');
+  await pool.query(fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'profile-preferences-upgrade.sql'), 'utf8'));
+  console.log('Database upgrade completed, including profile location and flexible move-in preferences.');
   await pool.end();
 }
 
