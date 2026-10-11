@@ -77,6 +77,22 @@ test('community notifications, reports and free-text filters', {
       assert.ok(!miss.data.matches.some(x=>x.user_id===other.id));
       assert.equal((await call('/matches?moveInFrom=2026-10-11&moveInTo=2026-10-10','GET',undefined,student.cookie)).status,400);
     });
+    await t.test('flatmate city and suburb filters combine on the server and validate input',async()=>{
+      await pool.query('UPDATE profiles SET preferred_location=$1 WHERE user_id=$2',['Kelburn, Wellington',other.id]);
+      for(const query of ['city=Wellington','city=Wellington&suburb=Kelburn','city=wellington&suburb=kelburn']){
+        const result=await call('/matches?'+query,'GET',undefined,student.cookie);
+        assert.equal(result.status,200,JSON.stringify(result.data));
+        assert.ok(result.data.matches.some(x=>x.user_id===other.id));
+      }
+      for(const query of ['city=Auckland&suburb=Kelburn','city=Wellington&suburb=Newtown','city=Wellington&suburb=%25']){
+        const result=await call('/matches?'+query,'GET',undefined,student.cookie);
+        assert.equal(result.status,200,JSON.stringify(result.data));
+        assert.ok(!result.data.matches.some(x=>x.user_id===other.id));
+      }
+      assert.equal((await call('/matches?suburb=Kelburn','GET',undefined,student.cookie)).status,400);
+      assert.equal((await call('/matches?city='+('a'.repeat(121)),'GET',undefined,student.cookie)).status,400);
+      assert.equal((await call('/matches?city=Wellington&suburb='+('a'.repeat(121)),'GET',undefined,student.cookie)).status,400);
+    });
     await pool.query('INSERT INTO saved_listing(student_id,listing_id) VALUES($1,$2)',[student.id,listingId]);
     await t.test('important edits notify once; unchanged edits do not notify again', async () => {
       payload.rent=230;
