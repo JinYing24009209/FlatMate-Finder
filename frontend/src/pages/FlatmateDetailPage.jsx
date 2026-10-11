@@ -109,7 +109,7 @@ export default function FlatmateDetailPage({ person, setPage, adminReview=false,
                   </div>
                   <div>
                     <dt>Move-in date</dt>
-                    <dd>{formatDate(profile.move_in_date, 'Flexible')}</dd>
+                    <dd>{profile.move_in_flexible?'Flexible':formatDate(profile.move_in_date, 'Not specified')}</dd>
                   </div>
                   <div>
                     <dt>Study routine</dt>
