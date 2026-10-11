@@ -47,9 +47,9 @@ router.put(
       INSERT INTO profiles (
         user_id, budget_min, budget_max, preferred_location, lifestyle_tags,
         study_habits, contact_preference, move_in_date, visible_for_matching,
-        advertiser_bio, display_phone, profile_photo, about_me
+        advertiser_bio, display_phone, profile_photo, about_me, preferred_city, preferred_suburb, move_in_flexible
       )
-      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ON CONFLICT(user_id) DO UPDATE SET
         budget_min = EXCLUDED.budget_min,
         budget_max = EXCLUDED.budget_max,
@@ -58,6 +58,9 @@ router.put(
         study_habits = EXCLUDED.study_habits,
         contact_preference = EXCLUDED.contact_preference,
         move_in_date = EXCLUDED.move_in_date,
+        move_in_flexible = EXCLUDED.move_in_flexible,
+        preferred_city = EXCLUDED.preferred_city,
+        preferred_suburb = EXCLUDED.preferred_suburb,
         visible_for_matching = EXCLUDED.visible_for_matching,
         advertiser_bio = EXCLUDED.advertiser_bio,
         display_phone = EXCLUDED.display_phone,
@@ -82,6 +85,9 @@ router.put(
       p.display_phone !== false,
       photo,
       p.about_me?.trim() || null,
+      p.preferred_city || null,
+      p.preferred_suburb || null,
+      p.move_in_flexible,
     ]);
     res.json({ message: 'Profile saved.', profile });
   })

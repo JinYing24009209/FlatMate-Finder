@@ -30,7 +30,7 @@ async function targetProfile(id, currentId) {
   } = await pool.query(
     `
     SELECT u.user_id,u.full_name,p.profile_photo,p.about_me,p.budget_min,p.budget_max,
-      p.preferred_location,p.lifestyle_tags,p.study_habits,p.contact_preference,
+      p.preferred_location,p.preferred_city,p.preferred_suburb,p.move_in_flexible,p.lifestyle_tags,p.study_habits,p.contact_preference,
       to_char(p.move_in_date,'YYYY-MM-DD') AS move_in_date,
       EXISTS(SELECT 1 FROM saved_flatmate s WHERE s.student_id=$2 AND s.saved_user_id=u.user_id) AS is_saved
     FROM users u JOIN profiles p ON p.user_id=u.user_id
