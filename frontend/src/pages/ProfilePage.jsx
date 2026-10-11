@@ -3,7 +3,12 @@ import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 import ProfilePhoto from '../components/ProfilePhoto';
 import DateInput from '../components/DateInput';
+import MoveInDateSelect from '../components/MoveInDateSelect';
+import LocationFilters from '../components/LocationFilters';
+import cities from '../../../shared/nzCities.json';
+
 export default function ProfilePage({ user }) {
+  const flatmate=user.role==='student'&&user.student_type==='flatmate';
   const [account, setAccount] = useState({ full_name: '', email: '', phone: '' });
   const [profile, setProfile] = useState({
     profile_photo: '',
@@ -15,6 +20,9 @@ export default function ProfilePage({ user }) {
     study_habits: '',
     contact_preference: 'Email',
     move_in_date: '',
+    move_in_flexible: false,
+    preferred_city: null,
+    preferred_suburb: null,
     visible_for_matching: true,
     advertiser_bio: '',
     display_phone: true,
@@ -28,13 +36,16 @@ export default function ProfilePage({ user }) {
       .then(([a, p]) => {
         setAccount(a.user);
         if (p.profile) {
-          setProfile(p.profile);
+          const saved=p.profile;
+          const parts=String(saved.preferred_location||'').split(',').map(part=>part.trim());
+          const city=cities.find(item=>parts.some(part=>part.toLowerCase()===item.toLowerCase()));
+          setProfile(flatmate&&!saved.preferred_city&&city?{...saved,preferred_city:city,preferred_suburb:parts.filter(part=>part.toLowerCase()!==city.toLowerCase()).join(', ')}:saved);
           setTags((p.profile.lifestyle_tags || []).join(', '));
         }
       })
       .catch((e) => setNotice(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [flatmate]);
   const save = async () => {
     if (loading || saving) return;
     setSaving(true);
@@ -207,9 +218,12 @@ export default function ProfilePage({ user }) {
           <div className="form-grid">
             {field('budget_min', 'Minimum weekly budget', 'number')}
             {field('budget_max', 'Maximum weekly budget', 'number')}
-            {field('preferred_location', 'Preferred location')}
+            {flatmate?<>
+              <LocationFilters showLabels city={profile.preferred_city||''} suburb={profile.preferred_suburb||''} onChange={({city,suburb})=>setProfile({...profile,preferred_city:city,preferred_suburb:suburb,preferred_location:[suburb,city].filter(Boolean).join(', ')})}/>
+              {!profile.preferred_city&&profile.preferred_location&&<p className="muted">Existing preference: {profile.preferred_location}. Select a city and area to replace this text.</p>}
+            </>:field('preferred_location', 'Preferred location')}
             {field('study_habits', 'Study routine')}
-            {field('move_in_date', 'Move-in date', 'date')}
+            {flatmate?<div className="move-in-field"><span>Move-in date</span><MoveInDateSelect allowUnspecified value={profile.move_in_flexible?'flexible':profile.move_in_date||''} onChange={value=>setProfile({...profile,move_in_flexible:value==='flexible',move_in_date:value==='flexible'?'':value})}/></div>:field('move_in_date', 'Move-in date', 'date')}
             <label>
               Lifestyle preferences
               <input

@@ -28,10 +28,13 @@ CREATE TABLE IF NOT EXISTS profiles (
   budget_min NUMERIC CHECK (budget_min >= 0),
   budget_max NUMERIC CHECK (budget_max >= 0),
   preferred_location VARCHAR(160),
+    preferred_city VARCHAR(120),
+    preferred_suburb VARCHAR(120),
   lifestyle_tags JSONB DEFAULT '[]'::jsonb,
   study_habits VARCHAR(160),
   contact_preference VARCHAR(80),
   move_in_date DATE,
+    move_in_flexible BOOLEAN NOT NULL DEFAULT false,
   visible_for_matching BOOLEAN DEFAULT true,
   advertiser_bio TEXT,
   display_phone BOOLEAN NOT NULL DEFAULT true

@@ -17,3 +17,5 @@ The same command then applies `outcomes-upgrade.sql`. It adds separate consent f
 
 Finally, `moderation-upgrade.sql` adds the nullable `report.resolution_action` field. New upheld decisions record `close_listing` or `deactivate_user`; old reviews remain NULL and are not retrospectively counted as successful moderation actions.
 
+`profile-preferences-upgrade.sql` then adds preferred city/area fields and an explicit flexible move-in flag. Run `npm run migrate` before using this version. Existing missing dates remain unspecified, not flexible. Legacy location text remains searchable until users select and save structured locations; no historical profile is overwritten by the migration.
+

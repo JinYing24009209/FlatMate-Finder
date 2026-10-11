@@ -1,0 +1,114 @@
+.move-in-picker {
+  display: block;
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+.move-in-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.move-in-field > span:first-child {
+  font-weight: 650;
+  color: #35564d;
+}
+.move-in-picker .move-in-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  background: white;
+  color: #25483f;
+  border: 1px solid #cbdad5;
+  border-radius: 12px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.move-in-picker .move-in-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 286px;
+  max-width: calc(100vw - 64px);
+  padding: 10px;
+  display: block;
+  background: #fff;
+  border: 1px solid #bfd4cb;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px #173e3526;
+}
+.move-in-picker .date-choice {
+  display: block;
+  padding: 10px 14px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: white;
+  color: #25483f;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.move-in-picker .date-choice:hover,
+.move-in-picker .date-choice[aria-pressed=true] {
+  background: #e0f1eb;
+  color: #146d5f;
+}
+.move-in-picker .flexible-choice {
+  background: #eff6f3;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.move-in-picker .date-month-navigation {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 8px 0;
+}
+.move-in-picker .date-month-navigation input {
+  min-width: 0;
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+}
+.move-in-picker .date-month-navigation button {
+  padding: 6px 12px;
+  border: 0;
+  background: #eff6f3;
+  color: #25483f;
+  border-radius: 8px;
+  font-size: 24px;
+  cursor: pointer;
+}
+.move-in-picker .date-choices {
+  display: block;
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.move-in-picker button:focus-visible {
+  outline: 2px solid #168579;
+  outline-offset: 1px;
+}
+.profile-location-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  grid-column: 1 / -1;
+}
+.profile-location-controls label {
+  display: grid;
+  gap: 8px;
+}
+@media(max-width:600px) {
+  .profile-location-controls {
+    grid-template-columns: 1fr;
+  }
+}
