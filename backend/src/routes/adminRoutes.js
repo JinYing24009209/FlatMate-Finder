@@ -18,9 +18,8 @@ router.post('/listings/:id/safety-check',aiRateLimit,asyncRoute(async(req,res)=>
 }));
 router.get('/users/:id', asyncRoute(async(req,res)=>{
   const {rows:[user]}=await pool.query(`SELECT u.user_id,u.full_name,u.role,u.is_active,u.student_type,
-    p.profile_photo,p.contact_preference,p.visible_for_matching,p.about_me,p.advertiser_bio,p.preferred_location,
-    p.study_habits,p.lifestyle_tags,p.move_in_date,
-    p.budget_min,p.budget_max FROM users u LEFT JOIN profiles p USING(user_id) WHERE u.user_id=$1`,[req.params.id]);
+    p.profile_photo,p.contact_preference,p.visible_for_matching,p.about_me,p.advertiser_bio,p.preferred_location,p.study_habits,p.lifestyle_tags,p.move_in_date,
+    p.preferred_city,p.preferred_suburb,p.move_in_flexible,p.budget_min,p.budget_max FROM users u LEFT JOIN profiles p USING(user_id) WHERE u.user_id=$1`,[req.params.id]);
   if(!user)
     return fail(res,404,'This user no longer exists. The report snapshot remains available.');
   res.json({user});
@@ -173,7 +172,8 @@ router.patch(
       return fail(res, 400, 'Invalid listing status.');
     const listing=await transaction(async client=>{
     const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[req.params.id]);
-    if(!before)throw v.invalid('Listing not found.',404);
+    if(!before)
+      throw v.invalid('Listing not found.',404);
     const {
       rows: [listing],
     } = await client.query('UPDATE listing SET status=$1,updated_at=now() WHERE listing_id=$2 RETURNING *', [
@@ -196,20 +196,25 @@ router.patch(
       (req.body.status==='dismissed'?'The report was dismissed after review.':'The report has been reviewed by an administrator.');
     const report=await transaction(async client=>{
       const {rows:[old]}=await client.query('SELECT * FROM report WHERE report_id=$1 FOR UPDATE',[req.params.id]);
-      if(!old)throw v.invalid('Report not found.',404);
-      if(old.status!=='pending')throw v.invalid('This report has already been processed; its original review is preserved.',409);
+      if(!old)
+        throw v.invalid('Report not found.',404);
+      if(old.status!=='pending')
+        throw v.invalid('This report has already been processed; its original review is preserved.',409);
       let action=null;
       if(req.body.status==='reviewed'){
         if(old.target_type==='listing'){
           const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[old.listing_id]);
-          if(!before)throw v.invalid('This listing was deleted. Dismiss the report with an explanation instead.',409);
+          if(!before)
+            throw v.invalid('This listing was deleted. Dismiss the report with an explanation instead.',409);
           const {rows:[after]}=await client.query("UPDATE listing SET status='closed',updated_at=now() WHERE listing_id=$1 RETURNING *",[old.listing_id]);
           await notifyListingChange(client,before,after);
           action='close_listing';
         }else{
-          if(old.reported_user_id===req.user.userId)throw v.invalid('You cannot deactivate your own administrator account.',400);
+          if(old.reported_user_id===req.user.userId)
+            throw v.invalid('You cannot deactivate your own administrator account.',400);
           const {rows:[target]}=await client.query('UPDATE users SET is_active=false WHERE user_id=$1 RETURNING user_id',[old.reported_user_id]);
-          if(!target)throw v.invalid('This user was deleted. Dismiss the report with an explanation instead.',409);
+          if(!target)
+            throw v.invalid('This user was deleted. Dismiss the report with an explanation instead.',409);
           action='deactivate_user';
         }
       }
