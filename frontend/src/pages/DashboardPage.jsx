@@ -3,6 +3,7 @@ import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 import { formatDate } from '../utils/dates';
 import AdminAnalytics from '../components/AdminAnalytics';
+
 export default function DashboardPage({ user, setPage,setSelected }) {
   const [notifications, setNotifications] = useState([]);
   const [reports, setReports] = useState([]);
@@ -21,14 +22,22 @@ export default function DashboardPage({ user, setPage,setSelected }) {
     let active = true;
     const refresh = async () => {
       try {
-        const [activity, ownReports] = await Promise.all([api('/notifications'), api('/reports/mine')]);
-        if (active) { setNotifications(activity.notifications.map(item=>readHere.current.has(item.notification_id)?{...item,is_read:true}:item)); setReports(ownReports.reports); }
-      } catch (e) { if (active) setError(e.message); }
+        const [activity, ownReports] = await Promise.all([api('/notifications'), user.role === 'admin' ? Promise.resolve({reports: []}) : api('/reports/mine')]);
+        if (active) {
+          setNotifications(activity.notifications.map(item=>readHere.current.has(item.notification_id)?{...item,is_read:true}:item));
+          setReports(ownReports.reports);
+        }
+      } catch (e) {
+        if (active) setError(e.message);
+      }
     };
     refresh();
     const timer = window.setInterval(refresh, 30000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, []);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [user.role]);
   useEffect(() => {
     let active = true;
     const tasks = [Promise.resolve(null), api('/profile/me'), api('/unread-count')];
@@ -85,10 +94,12 @@ export default function DashboardPage({ user, setPage,setSelected }) {
       else if (item.related_entity_type === 'listing') {
         if(user.role==='advertiser')setPage('My listings',{focusTarget:{type:'listing',id:item.related_entity_id}});
         else if(user.role==='admin'){
-          setSelected({targetType:'listing',id:item.related_entity_id});setPage('Report target');
+          setSelected({targetType:'listing',id:item.related_entity_id});
+          setPage('Report target');
         }else if(!people){
           const data=await api(`/listings/${item.related_entity_id}`);
-          setSelected(data.listing);setPage('Listing detail');
+          setSelected(data.listing);
+          setPage('Listing detail');
         }else setError('This update relates to a housing listing. Your current account is set to finding a flatmate.');
       }else if(item.related_entity_type==='deleted_listing'){
         setError('This listing has been removed. Its last known details are preserved in this notification.');
@@ -172,20 +183,21 @@ export default function DashboardPage({ user, setPage,setSelected }) {
           ))}
         </div>
       )}
-      {user.role==='admin'?<AdminAnalytics/>:<><div className="dashboard-section-title">
-        <h2>Make your next move</h2>
-        <span className="muted">Everything you need, in one place</span>
-      </div>
-      <div className="dashboard-actions">
-        {cards.map(([target, title, description, icon]) => (
-          <button key={target} onClick={() => setPage(target)}>
-            <span className="action-symbol">{icon}</span>
-            <h3>{title}</h3>
-            <p>{description}</p>
-            <b>Open {target.toLowerCase()} →</b>
-          </button>
-        ))}
-      </div>
+      {user.role==='admin'?<AdminAnalytics/>:<>
+        <div className="dashboard-section-title">
+          <h2>Make your next move</h2>
+          <span className="muted">Everything you need, in one place</span>
+        </div>
+        <div className="dashboard-actions">
+          {cards.map(([target, title, description, icon]) => (
+            <button key={target} onClick={() => setPage(target)}>
+              <span className="action-symbol">{icon}</span>
+              <h3>{title}</h3>
+              <p>{description}</p>
+              <b>Open {target.toLowerCase()} →</b>
+            </button>
+          ))}
+        </div>
       </>}
       <div className={`dashboard-bottom ${!student?'activity-full':''}`}>
         <section className="dashboard-panel">
@@ -241,11 +253,17 @@ export default function DashboardPage({ user, setPage,setSelected }) {
           </aside>
         ) : null}
       </div>
-      <section className="dashboard-panel" id="my-reports">
+      {user.role !== 'admin' && <section className="dashboard-panel" id="my-reports">
         <h2>My reports & outcomes</h2>
         {!reports.length && <p>No reports submitted.</p>}
-        {reports.map((report) => <article id={`my-report-${report.report_id}`} className={`row-card ${String(focusedReport)===String(report.report_id)?'focused-record':''}`} key={report.report_id}><div><h3>{report.reason}</h3><p>{report.target_snapshot?.title || report.target_snapshot?.name} · {formatDate(report.created_at)} · {report.resolution_action?'Upheld':report.status}</p><p>{report.resolution_note || 'Awaiting administrator review.'}</p></div></article>)}
-      </section>
+        {reports.map((report) => <article id={`my-report-${report.report_id}`} className={`row-card ${String(focusedReport)===String(report.report_id)?'focused-record':''}`} key={report.report_id}>
+          <div>
+            <h3>{report.reason}</h3>
+            <p>{report.target_snapshot?.title || report.target_snapshot?.name} · {formatDate(report.created_at)} · {report.resolution_action?'Upheld':report.status}</p>
+            <p>{report.resolution_note || 'Awaiting administrator review.'}</p>
+          </div>
+        </article>)}
+      </section>}
     </main>
   );
 }
