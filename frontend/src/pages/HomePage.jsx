@@ -147,20 +147,20 @@ export default function HomePage({ user, onStart, onBrowse, onListing, onBack, c
       <section className="home-features">
         <article>
           <span>01</span>
-          <h3>Search naturally</h3>
+          <h3>Find your next room</h3>
           <p>
-            Try “quiet furnished room near campus under $250” and let smart search do the filtering.
+            Explore rooms by city, area, rent and move-in date. Save your shortlist and contact advertisers in one place.
           </p>
         </article>
         <article>
           <span>02</span>
-          <h3>Know why it matches</h3>
-          <p>Compare homes and people with clear reasons—not a mysterious black-box score.</p>
+          <h3>Meet your kind of flatmate</h3>
+          <p>Compare budgets, study routines and lifestyles. Chat privately and confirm a match when you both agree.</p>
         </article>
         <article>
           <span>03</span>
-          <h3>Move with confidence</h3>
-          <p>Chat privately, save favourites and report anything that does not feel right.</p>
+          <h3>A little help from AI</h3>
+          <p>Search naturally, read listing summaries and explore recommendations and safety signals, with local fallback when AI is unavailable.</p>
         </article>
       </section>
       <section className="home-cta">

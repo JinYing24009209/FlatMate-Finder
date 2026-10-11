@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import ListingCard from '../components/ListingCard';
 import DateInput from '../components/DateInput';
-import CitySelect from '../components/CitySelect';
+import LocationFilters from '../components/LocationFilters';
 import SearchSections from '../components/SearchSections';
 import { api } from '../services/api';
 
@@ -20,11 +20,6 @@ const emptyFilters = {
 export default function BrowsePage({ user, setPage, setSelected }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [smartText,setSmartText]=useState('');
-  const [areas,setAreas]=useState([]),[areaError,setAreaError]=useState('');
-  useEffect(()=>{let active=true;setAreas([]);setAreaError('');
-    if(filters.city)api(`/listings/areas?city=${encodeURIComponent(filters.city)}`).then(d=>{if(active)setAreas(d.areas);})
-      .catch(e=>{if(active)setAreaError(e.message);});return()=>{active=false;};
-  },[filters.city]);
   const [listings, setListings] = useState([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [listingsError, setListingsError] = useState('');
@@ -223,14 +218,7 @@ export default function BrowsePage({ user, setPage, setSelected }) {
               value={filters.q}
               onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             />
-            <CitySelect
-              value={filters.city}
-              onChange={(event) => setFilters({ ...filters, city: event.target.value, suburb:'' })}
-            />
-            <select aria-label="Area or suburb" value={filters.suburb} disabled={!filters.city} onChange={e=>setFilters({...filters,suburb:e.target.value})}>
-              <option value="">{filters.city?'All areas':'Choose a city first'}</option>
-              {areas.map(area=><option key={area} value={area}>{area}</option>)}
-            </select>
+            <LocationFilters city={filters.city} suburb={filters.suburb} onChange={location=>setFilters({...filters,...location})}/>
             <input
               aria-label="Minimum weekly rent"
               type="number"
@@ -281,7 +269,6 @@ export default function BrowsePage({ user, setPage, setSelected }) {
             <button className="text-button" type="button" onClick={clearSearch} disabled={isSearching}>Clear</button>
           </div>
         </form>
-        {areaError&&<p role="alert" className="notice">Could not load areas: {areaError}</p>}
         <p className="search-hint">
           Try a natural-language search such as “quiet furnished room near a bus route under $250”.
         </p>
