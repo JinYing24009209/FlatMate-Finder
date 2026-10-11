@@ -116,8 +116,7 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
 
   return (
     <main className="content">
-      {adminReview&&<><button className="text-button" onClick={()=>setPage('Platform management')}>← Back to reports</button>
-        <p className="notice">Reported listing · Administrator-only review. Availability is shown for moderation, not booking.</p></>}
+      {adminReview&&<p className="notice">Administrator-only listing review. Availability is shown for moderation, not booking.</p>}
       <PageHeader
         title={listing.title}
         subtitle={`${listing.suburb || listing.address}, ${listing.city}`}
@@ -308,9 +307,9 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
               )}
             </>
           )}
-          <button className="text-button" onClick={() => setPage(adminReview?'Platform management':'Browse listings')}>
-            {adminReview?'← Back to reports':'← Back to results'}
-          </button>
+          {!adminReview && <button className="text-button" onClick={() => setPage('Browse listings')}>
+            ← Back to results
+          </button>}
         </aside>
       </div>
     </main>
