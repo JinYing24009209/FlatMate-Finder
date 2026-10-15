@@ -3,22 +3,34 @@ const { pool } = require('../config/database');
 const { auth, allow } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const ai = require('../services/aiService');
-const { searchFilters,extraListingConditions } = require('../services/listingFilters');
+const { searchFilters, extraListingConditions } = require('../services/listingFilters');
 const v = require('../services/validation');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
-router.use('/ai', (req, res, next) => req.path === '/status' ? next() : aiRateLimit(req, res, next));
+router.use('/ai', (req, res, next) =>
+  req.path === '/status' ? next() : aiRateLimit(req, res, next)
+);
 // Validate public text only: photos and account details never reach the provider.
 function listingInput(input) {
   v.object(input);
   const result = {};
-  for (const [key, max] of [['title',180],['description',10000],['city',120],['suburb',120],
-    ['house_rules',3000],['room_type',80]])
+  for (const [key, max] of [
+    ['title', 180],
+    ['description', 10000],
+    ['city', 120],
+    ['suburb', 120],
+    ['house_rules', 3000],
+    ['room_type', 80],
+  ])
     result[key] = v.text(input[key], key, max);
   result.rent = v.number(input.rent, 'Rent');
   result.bond = v.number(input.bond, 'Bond');
   const available = input.available_from;
-  if (available != null && typeof available !== 'string') throw v.invalid('Available date must be text.');
-  result.available_from = v.date(available?.replace(/T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, ''), 'Available date');
+  if (available != null && typeof available !== 'string')
+    throw v.invalid('Available date must be text.');
+  result.available_from = v.date(
+    available?.replace(/T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, ''),
+    'Available date'
+  );
   result.transport_options = v.strings(input.transport_options, 'Transport options', 20, 160);
   result.utilities = v.object(input.utilities ?? {}, 'Utilities');
   if (JSON.stringify(result.utilities).length > 3000) throw v.invalid('Utilities are too long.');
@@ -46,14 +58,36 @@ router.get(
     const { rows } = await pool.query(
       `${select} WHERE l.status='available' GROUP BY l.listing_id,u.full_name`
     );
-    const scores = await ai.enhancedListingScores(profile, rows);
+    const { rows: savedListings } = await pool.query(
+      `SELECT l.rent,l.city,l.suburb,l.room_type,l.description,l.house_rules
+       FROM saved_listing s JOIN listing l ON l.listing_id=s.listing_id
+       WHERE s.student_id=$1 ORDER BY s.saved_at DESC LIMIT 10`,
+      [req.user.userId]
+    );
+    let recentSearches = [];
+    if (req.query.recentSearches) {
+      try {
+        recentSearches = v.strings(
+          JSON.parse(v.text(req.query.recentSearches, 'Recent searches', 2000)),
+          'Recent search',
+          5,
+          300
+        );
+      } catch (error) {
+        if (error.status) throw error;
+        throw v.invalid('Recent searches must be a JSON string array.');
+      }
+    }
+    const scores = await ai.enhancedListingScores(profile, rows, {
+      savedListings,
+      recentSearches,
+    });
     const recommendations = rows
       .map((listing, index) => ({ ...listing, ai_match: scores[index] }))
       .sort((a, b) => b.ai_match.score - a.ai_match.score);
     res.json({
       recommendations,
-      ai_notice:
-        'Ranking uses your profile and listing information, not favourites or search history.',
+      ai_notice: 'Ranking uses your profile, recent searches, saved listings and listing meaning.',
     });
   })
 );
@@ -65,8 +99,14 @@ router.get(
     const searchText = requested.q;
     const interpretation = await ai.enhancedNaturalLanguageSearch(searchText);
     const explicitMin = v.number(req.query.minRent, 'Minimum rent');
-    // Explicit filters override inferred values, including a deliberately entered zero.
-    const { minRent, maxRent, city: location, roomType, availableFrom } = searchFilters({
+    // Explicit filters override inferred values, including a deliberately entered zero
+    const {
+      minRent,
+      maxRent,
+      city: location,
+      roomType,
+      availableFrom,
+    } = searchFilters({
       minRent: explicitMin ?? interpretation.minRent,
       maxRent: requested.maxRent ?? interpretation.maxRent,
       city: requested.city || interpretation.city,
@@ -97,7 +137,8 @@ router.get(
         AND ($9::date IS NULL OR l.available_from <= $9::date)
         ${extraListingConditions(10)}
       GROUP BY l.listing_id, u.full_name
-      ORDER BY l.rent`;
+      ORDER BY l.rent
+      LIMIT 30`;
     const params = [
       minRent,
       maxRent,
@@ -108,42 +149,26 @@ router.get(
       interpretation.transport ? `%${interpretation.transport}%` : '',
       interpretation.lifestyle,
       availableFrom || null,
-      requested.transport,requested.utilities,requested.lifestyle,requested.suburb,
+      requested.transport,
+      requested.utilities,
+      requested.lifestyle,
+      requested.suburb,
     ];
     const { rows } = await pool.query(sql, params);
-    const queryEmbedding = searchText
-      ? await ai.createEmbedding(searchText, 'RETRIEVAL_QUERY')
-      : null;
-    const provider = ai.getAiProviderStatus();
-    const stored = queryEmbedding
-      ? await pool.query('SELECT listing_id,embedding,model FROM listing_embedding')
-      : { rows: [] };
-    const vectors = new Map(
-      stored.rows
-        .filter((row) => row.model === provider.embeddingModel)
-        .map((row) => [row.listing_id, row.embedding])
-    );
-    let semanticMatches = 0;
+    const scores =
+      searchText && rows.length ? await ai.rankListingsForSmartSearch(searchText, rows) : [];
+    const resultMode = scores[0]?.mode || interpretation.mode;
     const listings = rows
-      .map((listing) => {
-        const storedVector = vectors.get(listing.listing_id);
-        if (queryEmbedding && storedVector) semanticMatches += 1;
-        return {
-          ...listing,
-          semantic_score: !searchText
-            ? null
-            :
-            queryEmbedding && storedVector
-              ? Math.max(0, Math.round(ai.cosineSimilarity(queryEmbedding, storedVector) * 100))
-              : ai.keywordSimilarity(searchText, listing),
-          semantic_source: !searchText
-            ? 'filters'
-            : queryEmbedding && storedVector
-              ? provider.mode
-              : 'local',
-        };
-      })
-      .sort((a, b) => b.semantic_score - a.semantic_score || Number(a.rent) - Number(b.rent));
+      .map((listing, index) => ({
+        ...listing,
+        ai_match: searchText ? scores[index] : null,
+        semantic_score: searchText ? scores[index]?.score : null,
+        semantic_source: searchText ? scores[index]?.mode || interpretation.mode : 'filters',
+      }))
+      .sort(
+        (a, b) =>
+          (b.semantic_score ?? 0) - (a.semantic_score ?? 0) || Number(a.rent) - Number(b.rent)
+      );
     res.json({
       interpretation: {
         ...interpretation,
@@ -156,11 +181,9 @@ router.get(
       listings,
       notice: !searchText
         ? 'Structured filters are active; every result matches the selected room criteria.'
-        : semanticMatches
-        ? `Gemini semantic ranking is active for ${semanticMatches} matching listing${
-            semanticMatches === 1 ? '' : 's'
-          }.`
-        : 'Natural-language parsing and local relevance ranking are active.',
+        : resultMode === 'gemini'
+          ? `Gemini compared your request with ${listings.length} candidate listing${listings.length === 1 ? '' : 's'}, including conflicts and missing information.`
+          : `Gemini is unavailable; local keyword search ranked ${listings.length} candidate listing${listings.length === 1 ? '' : 's'}.`,
     });
   })
 );
