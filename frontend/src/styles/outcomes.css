@@ -28,7 +28,7 @@
 }
 .standard-search .search-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
   align-items: end;
 }
@@ -64,7 +64,7 @@
 .agreement-controls button:disabled {
   opacity: 1;
 }
-@media(max-width:760px) {
+@media (max-width: 760px) {
   .smart-search-row {
     flex-direction: column;
   }
@@ -76,3 +76,4 @@
     gap: 16px;
   }
 }
+/* Payment and successful-match outcome cards. */

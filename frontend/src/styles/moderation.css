@@ -93,7 +93,7 @@
   font-size: 2rem;
 }
 .metric-donut span {
-  font-size: .8rem;
+  font-size: 0.8rem;
   color: #526b64;
 }
 .chart-legend {
@@ -140,6 +140,21 @@
   display: block;
   height: 100%;
 }
+.enquiry-outcomes-card .stacked-distribution {
+  height: 30px;
+  border-radius: 10px;
+  background: #edf3f0;
+  box-shadow: inset 0 0 0 1px #dce7e2;
+}
+.enquiry-outcomes-card .stacked-distribution i + i {
+  box-shadow: -2px 0 0 rgba(255, 255, 255, 0.72);
+}
+.enquiry-outcomes-card .chart-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px rgba(20, 64, 55, 0.05);
+}
 .distribution-total strong {
   font-size: 2rem;
   margin-right: 8px;
@@ -163,7 +178,7 @@
 .analytics-panel .needs-summary .metric-bars span {
   white-space: normal;
 }
-@media(max-width:520px) {
+@media (max-width: 520px) {
   .success-metrics {
     grid-template-columns: 1fr;
   }
@@ -181,7 +196,7 @@
 .analytics-panel .eyebrow {
   font-size: 1.12rem;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 .analytics-panel h2 {
   font-size: 2rem;
@@ -261,7 +276,7 @@
 .daily-column time {
   display: block;
   white-space: nowrap;
-  font-size: .82rem;
+  font-size: 0.82rem;
   margin-top: 10px;
 }
 .management-page .admin-tabs {
@@ -340,7 +355,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: .88rem;
+  font-size: 0.88rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -392,7 +407,7 @@
   height: 25px;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: .78rem;
+  font-size: 0.78rem;
   font-weight: 800;
   font-style: normal;
   line-height: 1;
@@ -416,7 +431,7 @@
   color: #55726a;
 }
 .dashboard-bottom.activity-full {
-  grid-template-columns: minmax(0,1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 .dashboard-page .notification-row.unread {
   background: #dbeee7;
@@ -453,7 +468,7 @@
   scroll-margin: 30px;
   border-radius: 14px;
 }
-@media(max-width:760px) {
+@media (max-width: 760px) {
   .management-heading,
   .listing-review-card .row-card {
     align-items: flex-start;
@@ -473,3 +488,4 @@
     font-size: 1.6rem;
   }
 }
+/* Report forms and administrator moderation views. */
