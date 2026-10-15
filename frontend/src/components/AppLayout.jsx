@@ -3,8 +3,18 @@ import { api } from '../services/api';
 import { getAccountPages } from '../utils/accountNavigation';
 
 const iconPaths = {
-  'Successful payments': <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m8 12 3 3 5-6"/></>,
-  'Matched flatmates': <><circle cx="8" cy="8" r="3"/><path d="M2 20a6 6 0 0 1 12 0m1-9 3 3 5-6"/></>,
+  'Successful payments': (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  'Matched flatmates': (
+    <>
+      <circle cx="8" cy="8" r="3" />
+      <path d="M2 20a6 6 0 0 1 12 0m1-9 3 3 5-6" />
+    </>
+  ),
   Dashboard: <path d="M3 10.5 12 3l9 7.5V21H6a3 3 0 0 1-3-3v-7.5Z" />,
   'Browse listings': (
     <>
@@ -96,13 +106,21 @@ export default function AppLayout({
     () => window.matchMedia('(max-width: 1360px)').matches
   );
   const [unread, setUnread] = useState(0);
-  const [notificationUnread,setNotificationUnread]=useState(0);
-  const refreshSequence=useRef(0);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const refreshSequence = useRef(0);
   const links = getAccountPages(user);
   const refresh = () => {
-    const sequence=++refreshSequence.current;
-    api('/unread-count').then(data=>{if(sequence===refreshSequence.current)setUnread(data.unread||0);}).catch(()=>{});
-    api('/notifications').then(data=>{if(sequence===refreshSequence.current)setNotificationUnread(data.unread||0);}).catch(()=>{});
+    const sequence = ++refreshSequence.current;
+    api('/unread-count')
+      .then((data) => {
+        if (sequence === refreshSequence.current) setUnread(data.unread || 0);
+      })
+      .catch(() => {});
+    api('/notifications')
+      .then((data) => {
+        if (sequence === refreshSequence.current) setNotificationUnread(data.unread || 0);
+      })
+      .catch(() => {});
   };
   useEffect(() => {
     refresh();
@@ -199,7 +217,14 @@ export default function AppLayout({
               </i>
               {!collapsed && <span className="nav-label">{link}</span>}
               {link === 'Enquiries' && unread > 0 && <em className="unread-badge">{unread}</em>}
-              {link==='Dashboard'&&notificationUnread>0&&<span className="notification-badge" aria-label={`${notificationUnread} unread notifications`}>{notificationUnread>99?'99+':notificationUnread}</span>}
+              {link === 'Dashboard' && notificationUnread > 0 && (
+                <span
+                  className="notification-badge"
+                  aria-label={`${notificationUnread} unread notifications`}
+                >
+                  {notificationUnread > 99 ? '99+' : notificationUnread}
+                </span>
+              )}
             </button>
           ))}
         </nav>

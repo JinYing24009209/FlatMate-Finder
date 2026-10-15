@@ -1,4 +1,6 @@
 const apiBase = import.meta.env.VITE_API_URL || '/api';
+
+// Centralise JSON requests, cookie credentials, and expired-session handling.
 export async function api(path, options = {}) {
   const response = await fetch(`${apiBase}${path}`, {
     credentials: 'include',

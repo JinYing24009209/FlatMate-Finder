@@ -1,0 +1,170 @@
+/* Student browse and listing safety experience */
+.browse-page .page-header {
+  margin-bottom: 28px;
+}
+.search-panel {
+  margin-bottom: 38px;
+}
+.search-panel .search-bar {
+  position: relative;
+  top: auto;
+}
+.search-hint {
+  margin: 11px 4px 0;
+  color: #70847e;
+  font-size: 13px;
+}
+.search-feedback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 12px 15px;
+  border-radius: 12px;
+  background: #e2f5f0;
+  color: #086b60;
+  font-weight: 700;
+}
+.search-feedback.loading {
+  background: #fff3d7;
+  color: #755409;
+}
+.search-spinner {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: search-spin 0.7s linear infinite;
+}
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.browse-notice {
+  margin: -18px 0 32px;
+}
+.browse-section {
+  margin-top: 44px;
+}
+.search-results-section {
+  margin-top: 24px;
+  scroll-margin-top: 24px;
+}
+.clear-search {
+  flex: 0 0 auto;
+  padding-right: 0;
+}
+.browse-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.browse-section-header h2 {
+  font-size: 27px;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+.browse-section-header p {
+  margin: 5px 0 0;
+}
+.title-with-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.recommendation-section {
+  padding: 26px;
+  border: 1px solid #dce7e2;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #fbfdfb, #f0f7f3);
+}
+.recommendation-empty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px dashed #b9d2c9;
+  color: #58736b;
+}
+.recommendation-empty > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #e2f4ee;
+  color: #13786a;
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+.recommendation-empty strong {
+  color: #21483f;
+}
+.recommendation-empty p {
+  margin: 3px 0 0;
+  font-size: 14px;
+}
+.safety-check-card {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #e1e8e3;
+}
+.safety-check-card h3 {
+  margin: 5px 0;
+}
+.safety-check-card > p {
+  color: #627871;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.safety-result {
+  margin-top: 13px;
+  padding: 13px;
+  border-radius: 12px;
+}
+.safety-result.safe {
+  background: #e3f4ed;
+  color: #126455;
+}
+.safety-result.warning {
+  background: #fff0df;
+  color: #854c11;
+}
+.safety-result p {
+  font-size: 13px;
+  margin: 5px 0;
+}
+.safety-result small {
+  display: block;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+@media (max-width: 850px) {
+  .search-panel .search-bar {
+    grid-template-columns: 1fr;
+  }
+  .recommendation-section {
+    padding: 20px;
+  }
+}
+@media (max-width: 560px) {
+  .browse-section {
+    margin-top: 34px;
+  }
+  .browse-section-header h2 {
+    font-size: 24px;
+  }
+  .recommendation-section {
+    padding: 17px;
+  }
+  .recommendation-empty {
+    align-items: flex-start;
+  }
+}

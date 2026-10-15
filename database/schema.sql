@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS listing (
   house_rules TEXT,
   utilities JSONB DEFAULT '{}'::jsonb,
   transport_options JSONB NOT NULL DEFAULT '[]'::jsonb,
+  lifestyle_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
   available_from DATE NOT NULL,
   status listing_status DEFAULT 'available',
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
