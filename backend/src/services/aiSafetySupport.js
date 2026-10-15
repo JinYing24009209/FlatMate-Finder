@@ -1,9 +1,9 @@
-// AI-enhanced feature: Safety Support
-// This AI feature prefers an external AI implementation, with a local fallback when the AI call fails.
+// Screen listing safety with Gemini and a local fallback.
+// Owner: Xinrui Gao
 
-const {generateGeminiJson}=require('./geminiClient');
+const { generateGeminiJson } = require('./geminiClient');
 
-// ==================== External AI call (Gemini preferred) ====================
+// Gemini implementation.
 async function enhancedSafetyCheck(listing) {
   // 1. GEMINI IMPLEMENTATION
   try {
@@ -43,7 +43,7 @@ async function enhancedSafetyCheck(listing) {
   return { ...safetyCheck(listing), mode: 'local-fallback' };
 }
 
-// ==================== Local algorithm (fallback) ====================
+// Local fallback used when Gemini is unavailable.
 function safetyCheck({ description = '', address = '' }) {
   const content = description.toLowerCase();
   const flags = [];
@@ -64,4 +64,4 @@ function safetyCheck({ description = '', address = '' }) {
   };
 }
 
-module.exports={enhancedSafetyCheck,safetyCheck};
+module.exports = { enhancedSafetyCheck, safetyCheck };
