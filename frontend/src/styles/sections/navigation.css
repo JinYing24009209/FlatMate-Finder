@@ -1,0 +1,142 @@
+/* The back button at the top of the sidebar */
+.sidebar-back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 42px;
+  margin-bottom: 18px;
+  padding: 9px 12px;
+  border: 1px solid #ffffff40;
+  border-radius: 12px;
+  background: #ffffff12;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sidebar-back:hover:not(:disabled) {
+  background: #ffffff25;
+}
+
+.sidebar-back:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sidebar-back:focus-visible,
+.page-back-button:focus-visible {
+  outline: 3px solid #f1c36f;
+  outline-offset: 3px;
+}
+
+/* When the sidebar is folded up, only the arrow is displayed */
+.sidebar-collapsed .sidebar-back {
+  justify-content: center;
+  width: 48px;
+  margin-inline: auto;
+  padding: 9px;
+}
+
+/* The back buttons on the home page and the public details page */
+.page-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #b7cec7;
+  border-radius: 10px;
+  background: #fff;
+  color: #173d36;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.page-back-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.public-back-bar {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px 24px 0;
+}
+
+/* The main title of the brand in the upper left corner of the homepage */
+.home-brand-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.home .home-nav {
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.home .home-brand-prominent {
+  gap: 16px;
+}
+
+.home .home-brand-prominent > b {
+  flex-shrink: 0;
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  font-size: 22px;
+}
+
+.home .home-site-title {
+  margin: 0;
+  color: #123e36;
+  font-size: clamp(28px, 3.2vw, 44px);
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: -1.2px;
+}
+
+/* Retain the title's recognizability on the small screen */
+@media (max-width: 560px) {
+  .home .home-brand-prominent {
+    gap: 10px;
+  }
+
+  .home .home-brand-prominent > b {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    font-size: 18px;
+  }
+
+  .home .home-site-title {
+    font-size: 28px;
+    letter-spacing: -0.7px;
+  }
+
+  /* The sidebar on the mobile phone has changed to the bottom bar, and the back key is displayed at the beginning of the bottom bar */
+  .sidebar .sidebar-back,
+  .sidebar-collapsed .sidebar .sidebar-back {
+    flex: 0 0 42px;
+    width: 42px;
+    min-height: 42px;
+    margin: 5px 6px 5px 0;
+    padding: 8px;
+    justify-content: center;
+  }
+
+  .sidebar-back span {
+    display: none;
+  }
+
+  .sidebar nav {
+    flex: 1;
+    min-width: 0;
+  }
+}
