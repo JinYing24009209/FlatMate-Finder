@@ -10,13 +10,25 @@ function FlatmateChat({ conversation, user, onRead, onAgreement }) {
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [agreeBusy,setAgreeBusy]=useState(false);
-  const agree=async()=>{
-    if(agreeBusy)return;
-    setAgreeBusy(true);setError('');
-    try{const result=await api(`/flatmate-conversations/${conversation.conversation_id}/agreement`,{
-      method:'PATCH',body:JSON.stringify({agreed:!conversation.my_agreed})});onAgreement(conversation.conversation_id,result);
-    }catch(e){setError(e.message);}finally{setAgreeBusy(false);}
+  const [agreeBusy, setAgreeBusy] = useState(false);
+  const agree = async () => {
+    if (agreeBusy) return;
+    setAgreeBusy(true);
+    setError('');
+    try {
+      const result = await api(
+        `/flatmate-conversations/${conversation.conversation_id}/agreement`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ agreed: !conversation.my_agreed }),
+        }
+      );
+      onAgreement(conversation.conversation_id, result);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAgreeBusy(false);
+    }
   };
   const bottom = useRef(null);
   const id = conversation.conversation_id;
@@ -81,16 +93,29 @@ function FlatmateChat({ conversation, user, onRead, onAgreement }) {
         <div>
           <b>{conversation.full_name}</b>
           <span>Private flatmate conversation</span>
-          <span>{conversation.my_agreed&&conversation.other_agreed?'✓ Both agreed — matched flatmates':'A match requires both people to agree.'}</span>
+          <span>
+            {conversation.my_agreed && conversation.other_agreed
+              ? '✓ Both agreed — matched flatmates'
+              : 'A match requires both people to agree.'}
+          </span>
         </div>
         <div className="agreement-controls">
-          <button className={`outline ${conversation.my_agreed?'agreed':''}`} aria-pressed={!!conversation.my_agreed} disabled={agreeBusy} onClick={agree}>
-            {agreeBusy?'Saving…':`You: ${conversation.my_agreed?'Agreed':'Not agreed'}`}
+          <button
+            className={`outline ${conversation.my_agreed ? 'agreed' : ''}`}
+            aria-pressed={!!conversation.my_agreed}
+            disabled={agreeBusy}
+            onClick={agree}
+          >
+            {agreeBusy ? 'Saving…' : `You: ${conversation.my_agreed ? 'Agreed' : 'Not agreed'}`}
           </button>
-          <button className={`outline ${conversation.other_agreed?'agreed':''}`} disabled title="Only your partner can change their agreement">
-            {conversation.full_name}: {conversation.other_agreed?'Agreed':'Not agreed'}
+          <button
+            className={`outline ${conversation.other_agreed ? 'agreed' : ''}`}
+            disabled
+            title="Only your partner can change their agreement"
+          >
+            {conversation.full_name}: {conversation.other_agreed ? 'Agreed' : 'Not agreed'}
           </button>
-          <small>You can change only your own choice. Withdrawing removes this mutual match.</small>
+          <small>A successful match is created when both people agree.</small>
         </div>
       </div>
       <div className="messages" aria-label="Conversation messages">
@@ -105,7 +130,14 @@ function FlatmateChat({ conversation, user, onRead, onAgreement }) {
               <small>{m.sender_name}</small>
               <p>{m.body}</p>
               <small>{formatDateTime(m.created_at)}</small>
-              {m.sender_id !== user.user_id && <ReportForm userId={m.sender_id} conversationId={id} messageId={m.message_id} label="Report this message" />}
+              {m.sender_id !== user.user_id && (
+                <ReportForm
+                  userId={m.sender_id}
+                  conversationId={id}
+                  messageId={m.message_id}
+                  label="Report this message"
+                />
+              )}
             </div>
           ))
         )}
@@ -161,15 +193,24 @@ export default function FlatmateEnquiriesPage({ user, focusId }) {
     };
   }, []);
   // Stable callback prevents polling effects from restarting on every render.
-  const onRead = useCallback((id) =>
-    setItems((old) => old.map((x) => (x.conversation_id === id ? { ...x, unread_count: 0 } : x)))
-  , []);
-  const onAgreement=useCallback((id,result)=>setItems(old=>old.map(x=>x.conversation_id===id?{...x,...result}:x)),[]);
+  const onRead = useCallback(
+    (id) =>
+      setItems((old) => old.map((x) => (x.conversation_id === id ? { ...x, unread_count: 0 } : x))),
+    []
+  );
+  const onAgreement = useCallback(
+    (id, result) =>
+      setItems((old) => old.map((x) => (x.conversation_id === id ? { ...x, ...result } : x))),
+    []
+  );
   const current = items.find((x) => x.conversation_id === selected) || items[0];
-  const positioned=useRef(null);
-  useEffect(()=>{if(focusId&&current?.conversation_id===Number(focusId)&&positioned.current!==focusId){
-    document.querySelector('.chat-panel')?.scrollIntoView({behavior:'smooth',block:'start'});positioned.current=focusId;
-  }},[focusId,current]);
+  const positioned = useRef(null);
+  useEffect(() => {
+    if (focusId && current?.conversation_id === Number(focusId) && positioned.current !== focusId) {
+      document.querySelector('.chat-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      positioned.current = focusId;
+    }
+  }, [focusId, current]);
   return (
     <main className="content">
       <PageHeader

@@ -1,37 +1,26 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
-
-export default function MyListingsPage({
-  setPage,
-  setEditing,
-  focusTarget
-}) {
+export default function MyListingsPage({ setPage, setEditing, focusTarget }) {
   const [listings, setListings] = useState([]);
   const [notice, setNotice] = useState('');
-
   const load = () =>
     api('/listings/mine')
-      .then(data => setListings(data.listings))
-      .catch(e => setNotice(e.message));
-
+      .then((data) => setListings(data.listings))
+      .catch((e) => setNotice(e.message));
   useEffect(() => {
     load();
   }, []);
-
   useEffect(() => {
     if (focusTarget?.type === 'listing' && listings.length) {
       const target = document.getElementById(`owned-listing-${focusTarget.id}`);
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.focus({ preventScroll: true });
-      } else {
-        setNotice('This listing is no longer in your account. It may have been removed.');
-      }
+      } else setNotice('This listing is no longer in your account. It may have been removed.');
     }
   }, [focusTarget, listings]);
-
-  const remove = async listing => {
+  const remove = async (listing) => {
     if (!window.confirm(`Delete “${listing.title}”?`)) return;
     try {
       await api(`/listings/${listing.listing_id}`, { method: 'DELETE' });
@@ -43,7 +32,6 @@ export default function MyListingsPage({
       setNotice(e.message);
     }
   };
-
   return (
     <main className="content">
       <PageHeader
@@ -61,36 +49,24 @@ export default function MyListingsPage({
           </button>
         }
       />
-
       {notice && <p className="notice">{notice}</p>}
-
       <div className="owner-listing-grid">
-        {listings.map(item => (
+        {listings.map((item) => (
           <article
             tabIndex={-1}
             id={`owned-listing-${item.listing_id}`}
-            className={`owner-listing-card ${
-              String(focusTarget?.id) === String(item.listing_id)
-                ? 'focused-record'
-                : ''
-            }`}
+            className={`owner-listing-card ${String(focusTarget?.id) === String(item.listing_id) ? 'focused-record' : ''}`}
             key={item.listing_id}
           >
             <div className="owner-cover">
-              {item.photos?.[0] ? (
-                <img src={item.photos[0]} alt={item.title} />
-              ) : (
-                <span>⌂</span>
-              )}
+              {item.photos?.[0] ? <img src={item.photos[0]} alt={item.title} /> : <span>⌂</span>}
               <em className={`status ${item.status}`}>{item.status}</em>
             </div>
-
             <div className="owner-listing-body">
               <h3>{item.title}</h3>
               <p className="listing-location">
                 ⌖ {item.suburb || item.city}, {item.city}
               </p>
-
               <div className="owner-facts">
                 <span>
                   <b>${Number(item.rent).toFixed(0)}</b>/wk
@@ -98,7 +74,6 @@ export default function MyListingsPage({
                 <span>{item.room_type}</span>
                 <span>{String(item.available_from).slice(0, 10)}</span>
               </div>
-
               <div className="button-row">
                 <button
                   className="primary"
@@ -109,10 +84,7 @@ export default function MyListingsPage({
                 >
                   Edit listing
                 </button>
-                <button
-                  className="danger-button"
-                  onClick={() => remove(item)}
-                >
+                <button className="danger-button" onClick={() => remove(item)}>
                   Delete
                 </button>
               </div>
@@ -120,10 +92,7 @@ export default function MyListingsPage({
           </article>
         ))}
       </div>
-
-      {!listings.length && (
-        <div className="empty">Create your first room listing.</div>
-      )}
+      {!listings.length && <div className="empty">Create your first room listing.</div>}
     </main>
   );
 }
