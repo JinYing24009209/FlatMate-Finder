@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS listing_category (
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE listing_category DROP CONSTRAINT IF EXISTS listing_category_kind_check;
+ALTER TABLE listing_category ADD CONSTRAINT listing_category_kind_check
+  CHECK (kind IN ('room_type','transport','utility','listing_lifestyle','flatmate_lifestyle'));
 CREATE UNIQUE INDEX IF NOT EXISTS listing_category_name_idx ON listing_category(kind, lower(name));
 CREATE TABLE IF NOT EXISTS listing_category_link (
   listing_id INTEGER REFERENCES listing(listing_id) ON DELETE CASCADE,
@@ -36,6 +39,22 @@ DO $$ BEGIN
     INSERT INTO app_migration(name) VALUES('community-categories-v1');
   END IF;
 END $$;
+ALTER TABLE listing ADD COLUMN IF NOT EXISTS lifestyle_tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+INSERT INTO listing_category(kind,name) VALUES
+  ('room_type','Single room'),('room_type','Double room'),('room_type','Shared room'),('room_type','Studio'),
+  ('listing_lifestyle','Quiet'),('listing_lifestyle','Social'),('listing_lifestyle','Tidy'),
+  ('listing_lifestyle','Non-smoking'),('listing_lifestyle','Pet friendly'),('listing_lifestyle','Study friendly'),
+  ('flatmate_lifestyle','Quiet'),('flatmate_lifestyle','Social'),('flatmate_lifestyle','Tidy'),
+  ('flatmate_lifestyle','Non-smoker'),('flatmate_lifestyle','Pet friendly'),
+  ('flatmate_lifestyle','Early riser'),('flatmate_lifestyle','Night owl')
+ON CONFLICT DO NOTHING;
+INSERT INTO listing_category(kind,name)
+  SELECT DISTINCT 'room_type', trim(room_type) FROM listing
+  WHERE length(trim(room_type)) BETWEEN 1 AND 160 ON CONFLICT DO NOTHING;
+INSERT INTO listing_category(kind,name)
+  SELECT DISTINCT 'flatmate_lifestyle', trim(value)
+  FROM profiles, jsonb_array_elements_text(lifestyle_tags) value
+  WHERE length(trim(value)) BETWEEN 1 AND 160 ON CONFLICT DO NOTHING;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE report ADD COLUMN IF NOT EXISTS target_type VARCHAR(30) NOT NULL DEFAULT 'listing';
 ALTER TABLE report ADD COLUMN IF NOT EXISTS target_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
