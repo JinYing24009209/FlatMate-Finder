@@ -1,3 +1,5 @@
+let rateLimitCooldownUntil = 0;
+
 function getAiProviderStatus() {
   const configured = Boolean(process.env.GEMINI_API_KEY);
   return {
@@ -19,8 +21,11 @@ async function fetchWithRetry(url, options) {
       onAbort = () => reject(signal.reason);
       signal.addEventListener('abort', onAbort, { once: true });
     });
-    try { return await Promise.race([work(), aborted]); }
-    finally { signal.removeEventListener('abort', onAbort); }
+    try {
+      return await Promise.race([work(), aborted]);
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+    }
   };
   let response;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -33,8 +38,10 @@ async function fetchWithRetry(url, options) {
         return { ok: true, status: response.status, json: async () => data };
       }
       await response.body?.cancel();
-    } finally { release(); }
-    if (response.ok || ![429, 500, 502, 503, 504].includes(response.status)) return response;
+    } finally {
+      release();
+    }
+    if (response.ok || ![500, 502, 503, 504].includes(response.status)) return response;
     if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
   }
   return response;
@@ -43,7 +50,9 @@ async function fetchWithRetry(url, options) {
 async function generateGeminiJson(prompt, signal) {
   const status = getAiProviderStatus();
   if (status.mode !== 'gemini' || !status.configured) return null;
-  if (typeof prompt !== 'string' || prompt.length > 40000) throw new Error('AI prompt exceeds the input limit.');
+  if (Date.now() < rateLimitCooldownUntil) return null;
+  if (typeof prompt !== 'string' || prompt.length > 40000)
+    throw new Error('AI prompt exceeds the input limit.');
   const response = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${status.textModel}:generateContent`,
     {
@@ -63,10 +72,34 @@ async function generateGeminiJson(prompt, signal) {
       }),
     }
   );
+  if (response.status === 429) {
+    rateLimitCooldownUntil = Date.now() + 60 * 1000;
+    return null;
+  }
   if (!response.ok) throw new Error(`Gemini text service returned ${response.status}.`);
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('');
-  return text ? JSON.parse(text) : null;
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    const unfenced = text
+      .replace(/^\s*```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'");
+    const objectStart = unfenced.indexOf('{');
+    const arrayStart = unfenced.indexOf('[');
+    const start = [objectStart, arrayStart].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+    const end = Math.max(unfenced.lastIndexOf('}'), unfenced.lastIndexOf(']'));
+    if (start == null || end < start) return null;
+    const repaired = unfenced.slice(start, end + 1).replace(/,\s*([}\]])/g, '$1');
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      return null;
+    }
+  }
 }
 
-module.exports={getAiProviderStatus,fetchWithRetry,generateGeminiJson};
+module.exports = { getAiProviderStatus, fetchWithRetry, generateGeminiJson };
