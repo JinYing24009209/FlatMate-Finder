@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
     "migrate": "node scripts/migrate.js",
     "ai:reindex": "node scripts/rebuildEmbeddings.js",
     "seed:demo": "node scripts/seedDemo.js",
