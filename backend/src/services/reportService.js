@@ -1,5 +1,6 @@
 const { notifyAdminsOfReport } = require('./notificationService');
 
+// Persist a report and notify administrators within the caller's transaction.
 async function createReport(
   client,
   {
@@ -10,11 +11,11 @@ async function createReport(
     reason,
     description,
     snapshot = {},
-    evidence = {}
+    evidence = {},
   }
 ) {
   const {
-    rows: [report]
+    rows: [report],
   } = await client.query(
     `INSERT INTO report
     (reporter_id,listing_id,reported_user_id,target_type,reason,description,target_snapshot,evidence)
@@ -27,13 +28,10 @@ async function createReport(
       reason,
       description,
       JSON.stringify(snapshot),
-      JSON.stringify(evidence)
+      JSON.stringify(evidence),
     ]
   );
-
   await notifyAdminsOfReport(client, report);
-
   return report;
 }
-
 module.exports = { createReport };

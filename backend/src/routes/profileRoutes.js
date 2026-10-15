@@ -1,11 +1,11 @@
-//D.个人资料读取与修改 | D. Read and update personal profiles.
+// Personal-profile read and update routes.
 const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const v = require('../services/validation');
- 
-//D01：读取个人资料 | D01. Read the personal profile.
+
+// Return the current user's personal profile.
 router.get(
   '/me',
   auth,
@@ -20,16 +20,16 @@ router.get(
   })
 );
 
-//D02：提交或更新个人资料 | D02. Create or update the personal profile.
+// Create or update the current user's profile.
 router.put(
   '/me',
   auth,
   asyncRoute(async (req, res) => {
     const p = v.profile(req.body);
-    //检查预算是否合法 | Validate the budget range.
+    // Validate the preferred budget range.
     if (p.budget_min && p.budget_max && Number(p.budget_min) > Number(p.budget_max))
       return fail(res, 400, 'Minimum budget cannot exceed maximum budget.');
-    //照片是否合法 | Validate the photo.
+    // Validate the optional profile photo.
     const photo = p.profile_photo || null;
     if (
       photo &&
@@ -38,11 +38,10 @@ router.put(
         !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(photo))
     )
       return fail(res, 400, 'Choose a JPEG, PNG or WebP profile photo below 1 MB.');
-    // 检查简介的长度 | Check introduction length.
+    // Limit the introduction before storing it.
     if (p.about_me != null && (typeof p.about_me !== 'string' || p.about_me.length > 1000))
       return fail(res, 400, 'Your introduction must be at most 1000 characters.');
-    //讲个人资料插入数据库 | Insert profile data into the database.
-    //首次新增，已有则更新 | Insert a new profile or update an existing one.
+    // Insert a new profile or update the existing row.
     const sql = `
       INSERT INTO profiles (
         user_id, budget_min, budget_max, preferred_location, lifestyle_tags,
@@ -68,7 +67,7 @@ router.put(
         about_me = EXCLUDED.about_me
       RETURNING *, to_char(move_in_date, 'YYYY-MM-DD') AS move_in_date
     `;
-    //查询个人资料并返回前端结果 | Execute the profile write and return the resulting profile to the frontend.
+    // Return the profile produced by the upsert.
     const {
       rows: [profile],
     } = await pool.query(sql, [

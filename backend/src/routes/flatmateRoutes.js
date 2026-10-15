@@ -4,11 +4,13 @@ const { auth, fail } = require('../middleware/auth');
 const { asyncRoute } = require('../middleware/errorHandler');
 const { enhancedFlatmateMatchScore } = require('../services/aiService');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
-const {transaction}=require('../services/transaction');
-const {notify}=require('../services/notificationService');
-const v=require('../services/validation');
+const { transaction } = require('../services/transaction');
+const { notify } = require('../services/notificationService');
+const v = require('../services/validation');
 const profiles = express.Router();
 const conversations = express.Router();
+
+// Restrict both routers to active students seeking flatmates.
 const studentAccess = asyncRoute(async (req, res, next) => {
   const {
     rows: [user],
@@ -25,6 +27,7 @@ const validId = (value) => Number.isSafeInteger(Number(value)) && Number(value) 
 const messageBody = (value) => (typeof value === 'string' ? value.trim() : '');
 
 async function targetProfile(id, currentId) {
+  // Hidden profiles remain visible to users with an existing conversation.
   const {
     rows: [profile],
   } = await pool.query(
@@ -71,15 +74,21 @@ async function insertMessage(client, row, sender, body) {
   );
   return message;
 }
-profiles.get('/matched',asyncRoute(async(req,res)=>{
-  const {rows}=await pool.query(`SELECT u.user_id,u.full_name,p.profile_photo,p.about_me,p.preferred_location,
+profiles.get(
+  '/matched',
+  asyncRoute(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT u.user_id,u.full_name,p.profile_photo,p.about_me,p.preferred_location,
     p.budget_min,p.budget_max,p.lifestyle_tags,p.study_habits,c.conversation_id,c.matched_at,true AS mutually_agreed
     FROM flatmate_conversation c JOIN users u ON u.user_id=CASE WHEN c.member_low=$1 THEN c.member_high ELSE c.member_low END
     LEFT JOIN profiles p ON p.user_id=u.user_id
     WHERE $1 IN(c.member_low,c.member_high) AND c.low_agreed AND c.high_agreed AND u.is_active
-    ORDER BY c.matched_at DESC,c.conversation_id DESC`,[req.user.userId]);
-  res.json({matches:rows});
-}));
+    ORDER BY c.matched_at DESC,c.conversation_id DESC`,
+      [req.user.userId]
+    );
+    res.json({ matches: rows });
+  })
+);
 profiles.get(
   '/:id',
   aiRateLimit,
@@ -151,33 +160,64 @@ conversations.get(
     res.json({ conversations: rows });
   })
 );
-conversations.patch('/:id/agreement',asyncRoute(async(req,res)=>{
-  if(!validId(req.params.id)||typeof req.body.agreed!=='boolean')throw v.invalid('Choose agreed or not agreed.');
-  const result=await transaction(async client=>{
-    const {rows:[old]}=await client.query(`SELECT * FROM flatmate_conversation WHERE conversation_id=$1
-      AND $2 IN(member_low,member_high) FOR UPDATE`,[req.params.id,req.user.userId]);
-    if(!old)throw v.invalid('Conversation not found.',404);
-    const low=old.member_low===req.user.userId;
-    const recipient=low?old.member_high:old.member_low;
-    if(req.body.agreed){
-      const other=await client.query("SELECT 1 FROM users WHERE user_id=$1 AND is_active AND role='student' AND student_type='flatmate'",[recipient]);
-      if(!other.rowCount)throw v.invalid('This account is no longer available for matching.',409);
-    }
-    const mine=low?old.low_agreed:old.high_agreed;
-    if(mine===req.body.agreed)return old;
-    const {rows:[row]}=await client.query(`UPDATE flatmate_conversation SET
+conversations.patch(
+  '/:id/agreement',
+  asyncRoute(async (req, res) => {
+    if (!validId(req.params.id) || typeof req.body.agreed !== 'boolean')
+      throw v.invalid('Choose agreed or not agreed.');
+    const result = await transaction(async (client) => {
+      const {
+        rows: [old],
+      } = await client.query(
+        `SELECT * FROM flatmate_conversation WHERE conversation_id=$1
+      AND $2 IN(member_low,member_high) FOR UPDATE`,
+        [req.params.id, req.user.userId]
+      );
+      if (!old) throw v.invalid('Conversation not found.', 404);
+      const low = old.member_low === req.user.userId;
+      const recipient = low ? old.member_high : old.member_low;
+      if (req.body.agreed) {
+        const other = await client.query(
+          "SELECT 1 FROM users WHERE user_id=$1 AND is_active AND role='student' AND student_type='flatmate'",
+          [recipient]
+        );
+        if (!other.rowCount)
+          throw v.invalid('This account is no longer available for matching.', 409);
+      }
+      const mine = low ? old.low_agreed : old.high_agreed;
+      if (mine === req.body.agreed) return old;
+      const {
+        rows: [row],
+      } = await client.query(
+        `UPDATE flatmate_conversation SET
       low_agreed=CASE WHEN member_low=$2 THEN $3 ELSE low_agreed END,
       high_agreed=CASE WHEN member_high=$2 THEN $3 ELSE high_agreed END,
       matched_at=CASE WHEN $3 AND (CASE WHEN member_low=$2 THEN high_agreed ELSE low_agreed END)
         THEN COALESCE(matched_at,now()) ELSE NULL END,updated_at=now()
-      WHERE conversation_id=$1 RETURNING *`,[old.conversation_id,req.user.userId,req.body.agreed]);
-    await notify(recipient,'flatmate_agreement',row.low_agreed&&row.high_agreed?'You both agreed to be flatmates. Your match is confirmed.':req.body.agreed?'Your conversation partner agreed to be flatmates.':'Your conversation partner withdrew their agreement.',
-      'flatmate_conversation',row.conversation_id,client);
-    return row;
-  });
-  res.json({my_agreed:result.member_low===req.user.userId?result.low_agreed:result.high_agreed,
-    other_agreed:result.member_low===req.user.userId?result.high_agreed:result.low_agreed,matched_at:result.matched_at});
-}));
+      WHERE conversation_id=$1 RETURNING *`,
+        [old.conversation_id, req.user.userId, req.body.agreed]
+      );
+      await notify(
+        recipient,
+        'flatmate_agreement',
+        row.low_agreed && row.high_agreed
+          ? 'You both agreed to be flatmates. Your match is confirmed.'
+          : req.body.agreed
+            ? 'Your conversation partner agreed to be flatmates.'
+            : 'Your conversation partner withdrew their agreement.',
+        'flatmate_conversation',
+        row.conversation_id,
+        client
+      );
+      return row;
+    });
+    res.json({
+      my_agreed: result.member_low === req.user.userId ? result.low_agreed : result.high_agreed,
+      other_agreed: result.member_low === req.user.userId ? result.high_agreed : result.low_agreed,
+      matched_at: result.matched_at,
+    });
+  })
+);
 conversations.get(
   '/:id/messages',
   asyncRoute(async (req, res) => {
