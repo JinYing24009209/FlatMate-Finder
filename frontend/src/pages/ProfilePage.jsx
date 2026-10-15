@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 import ProfilePhoto from '../components/ProfilePhoto';
-import DateInput from '../components/DateInput';
 import MoveInDateSelect from '../components/MoveInDateSelect';
 import LocationFilters from '../components/LocationFilters';
+import { CategoryMultiSelect } from '../components/CategorySelect';
+import useCategories from '../hooks/useCategories';
 import cities from '../../../shared/nzCities.json';
-
 export default function ProfilePage({ user }) {
-  const flatmate=user.role==='student'&&user.student_type==='flatmate';
+  const flatmate = user.role === 'student' && user.student_type === 'flatmate';
   const [account, setAccount] = useState({ full_name: '', email: '', phone: '' });
   const [profile, setProfile] = useState({
     profile_photo: '',
@@ -27,7 +27,8 @@ export default function ProfilePage({ user }) {
     advertiser_bio: '',
     display_phone: true,
   });
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState([]);
+  const { options } = useCategories();
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,11 +37,26 @@ export default function ProfilePage({ user }) {
       .then(([a, p]) => {
         setAccount(a.user);
         if (p.profile) {
-          const saved=p.profile;
-          const parts=String(saved.preferred_location||'').split(',').map(part=>part.trim());
-          const city=cities.find(item=>parts.some(part=>part.toLowerCase()===item.toLowerCase()));
-          setProfile(flatmate&&!saved.preferred_city&&city?{...saved,preferred_city:city,preferred_suburb:parts.filter(part=>part.toLowerCase()!==city.toLowerCase()).join(', ')}:saved);
-          setTags((p.profile.lifestyle_tags || []).join(', '));
+          const saved = p.profile;
+          // Parse only recognised legacy values to avoid losing free-form text.
+          const parts = String(saved.preferred_location || '')
+            .split(',')
+            .map((part) => part.trim());
+          const city = cities.find((item) =>
+            parts.some((part) => part.toLowerCase() === item.toLowerCase())
+          );
+          setProfile(
+            flatmate && !saved.preferred_city && city
+              ? {
+                  ...saved,
+                  preferred_city: city,
+                  preferred_suburb: parts
+                    .filter((part) => part.toLowerCase() !== city.toLowerCase())
+                    .join(', '),
+                }
+              : saved
+          );
+          setTags(p.profile.lifestyle_tags || []);
         }
       })
       .catch((e) => setNotice(e.message))
@@ -57,10 +73,7 @@ export default function ProfilePage({ user }) {
           method: 'PUT',
           body: JSON.stringify({
             ...profile,
-            lifestyle_tags: tags
-              .split(',')
-              .map((x) => x.trim())
-              .filter(Boolean),
+            lifestyle_tags: tags,
           }),
         }),
       ]);
@@ -74,15 +87,11 @@ export default function ProfilePage({ user }) {
   const field = (name, label, type = 'text') => (
     <label>
       {label}
-      {type === 'date' ? <DateInput
-        aria-label={label}
-        value={profile[name] || ''}
-        onChange={(e) => setProfile({ ...profile, [name]: e.target.value })}
-      /> : <input
+      <input
         type={type}
         value={profile[name] || ''}
         onChange={(e) => setProfile({ ...profile, [name]: e.target.value })}
-      />}
+      />
     </label>
   );
   return (
@@ -218,18 +227,49 @@ export default function ProfilePage({ user }) {
           <div className="form-grid">
             {field('budget_min', 'Minimum weekly budget', 'number')}
             {field('budget_max', 'Maximum weekly budget', 'number')}
-            {flatmate?<>
-              <LocationFilters showLabels city={profile.preferred_city||''} suburb={profile.preferred_suburb||''} onChange={({city,suburb})=>setProfile({...profile,preferred_city:city,preferred_suburb:suburb,preferred_location:[suburb,city].filter(Boolean).join(', ')})}/>
-              {!profile.preferred_city&&profile.preferred_location&&<p className="muted">Existing preference: {profile.preferred_location}. Select a city and area to replace this text.</p>}
-            </>:field('preferred_location', 'Preferred location')}
+            <>
+              <LocationFilters
+                showLabels
+                city={profile.preferred_city || ''}
+                suburb={profile.preferred_suburb || ''}
+                onChange={({ city, suburb }) =>
+                  setProfile({
+                    ...profile,
+                    preferred_city: city,
+                    preferred_suburb: suburb,
+                    preferred_location: [suburb, city].filter(Boolean).join(', '),
+                  })
+                }
+              />
+              {!profile.preferred_city && profile.preferred_location && (
+                <p className="muted">
+                  Existing preference: {profile.preferred_location}. Select a city and area to
+                  replace this text.
+                </p>
+              )}
+            </>
             {field('study_habits', 'Study routine')}
-            {flatmate?<div className="move-in-field"><span>Move-in date</span><MoveInDateSelect allowUnspecified value={profile.move_in_flexible?'flexible':profile.move_in_date||''} onChange={value=>setProfile({...profile,move_in_flexible:value==='flexible',move_in_date:value==='flexible'?'':value})}/></div>:field('move_in_date', 'Move-in date', 'date')}
+            <div className="move-in-field">
+              <span>Move-in date</span>
+              <MoveInDateSelect
+                allowUnspecified
+                value={profile.move_in_flexible ? 'flexible' : profile.move_in_date || ''}
+                onChange={(value) =>
+                  setProfile({
+                    ...profile,
+                    move_in_flexible: value === 'flexible',
+                    move_in_date: value === 'flexible' ? '' : value,
+                  })
+                }
+              />
+            </div>
             <label>
               Lifestyle preferences
-              <input
+              <CategoryMultiSelect
+                label="Lifestyle preferences"
+                options={options('flatmate_lifestyle')}
                 value={tags}
-                placeholder="quiet, tidy, non-smoker"
-                onChange={(e) => setTags(e.target.value)}
+                onChange={setTags}
               />
             </label>
             <label>

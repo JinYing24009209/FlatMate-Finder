@@ -3,17 +3,16 @@ import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 import { formatDate } from '../utils/dates';
 import AdminAnalytics from '../components/AdminAnalytics';
-
-export default function DashboardPage({ user, setPage,setSelected }) {
+export default function DashboardPage({ user, setPage, setSelected }) {
   const [notifications, setNotifications] = useState([]);
   const [reports, setReports] = useState([]);
   const [showAll, setShowAll] = useState(false);
   const [profile, setProfile] = useState(null);
   const [counts, setCounts] = useState({ saved: null, conversations: null, unread: null });
   const [error, setError] = useState('');
-  const [focusedReport,setFocusedReport]=useState(null);
-  const readHere=useRef(new Set());
-  const unread=notifications.filter(item=>!item.is_read).length;
+  const [focusedReport, setFocusedReport] = useState(null);
+  const readHere = useRef(new Set());
+  const unread = notifications.filter((item) => !item.is_read).length;
   const student = user.role === 'student';
   const people = student && user.student_type === 'flatmate';
   const search = people ? 'Flatmate matches' : 'Browse listings';
@@ -22,9 +21,16 @@ export default function DashboardPage({ user, setPage,setSelected }) {
     let active = true;
     const refresh = async () => {
       try {
-        const [activity, ownReports] = await Promise.all([api('/notifications'), user.role === 'admin' ? Promise.resolve({reports: []}) : api('/reports/mine')]);
+        const [activity, ownReports] = await Promise.all([
+          api('/notifications'),
+          user.role === 'admin' ? Promise.resolve({ reports: [] }) : api('/reports/mine'),
+        ]);
         if (active) {
-          setNotifications(activity.notifications.map(item=>readHere.current.has(item.notification_id)?{...item,is_read:true}:item));
+          setNotifications(
+            activity.notifications.map((item) =>
+              readHere.current.has(item.notification_id) ? { ...item, is_read: true } : item
+            )
+          );
           setReports(ownReports.reports);
         }
       } catch (e) {
@@ -80,29 +86,40 @@ export default function DashboardPage({ user, setPage,setSelected }) {
       setNotifications((old) =>
         old.map((x) => (x.notification_id === item.notification_id ? { ...x, is_read: true } : x))
       );
-      window.dispatchEvent(new CustomEvent('unread-changed',{detail:{notificationId:item.notification_id}}));
+      window.dispatchEvent(
+        new CustomEvent('unread-changed', { detail: { notificationId: item.notification_id } })
+      );
       if (item.related_entity_type === 'flatmate_conversation' && people)
         setPage('Enquiries', { enquiryId: item.related_entity_id });
       else if (item.related_entity_type === 'enquiry' && !people)
         setPage('Enquiries', { enquiryId: item.related_entity_id });
       else if (item.related_entity_type === 'report' && user.role === 'admin')
-        setPage('Platform management',{focusTarget:{type:'report',id:item.related_entity_id}});
+        setPage('Platform management', {
+          focusTarget: { type: 'report', id: item.related_entity_id },
+        });
       else if (item.related_entity_type === 'report') {
         setFocusedReport(item.related_entity_id);
-        document.getElementById(`my-report-${item.related_entity_id}`)?.scrollIntoView({ behavior: 'smooth',block:'center' });
-      }
-      else if (item.related_entity_type === 'listing') {
-        if(user.role==='advertiser')setPage('My listings',{focusTarget:{type:'listing',id:item.related_entity_id}});
-        else if(user.role==='admin'){
-          setSelected({targetType:'listing',id:item.related_entity_id});
+        document
+          .getElementById(`my-report-${item.related_entity_id}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (item.related_entity_type === 'listing') {
+        if (user.role === 'advertiser')
+          setPage('My listings', { focusTarget: { type: 'listing', id: item.related_entity_id } });
+        else if (user.role === 'admin') {
+          setSelected({ targetType: 'listing', id: item.related_entity_id });
           setPage('Report target');
-        }else if(!people){
-          const data=await api(`/listings/${item.related_entity_id}`);
+        } else if (!people) {
+          const data = await api(`/listings/${item.related_entity_id}`);
           setSelected(data.listing);
           setPage('Listing detail');
-        }else setError('This update relates to a housing listing. Your current account is set to finding a flatmate.');
-      }else if(item.related_entity_type==='deleted_listing'){
-        setError('This listing has been removed. Its last known details are preserved in this notification.');
+        } else
+          setError(
+            'This update relates to a housing listing. Your current account is set to finding a flatmate.'
+          );
+      } else if (item.related_entity_type === 'deleted_listing') {
+        setError(
+          'This listing has been removed. Its last known details are preserved in this notification.'
+        );
       }
     } catch (e) {
       setError(e.message);
@@ -139,7 +156,11 @@ export default function DashboardPage({ user, setPage,setSelected }) {
     <main className="content dashboard-page">
       <PageHeader
         title="Dashboard"
-        subtitle={user.role === 'admin' ? 'Open live outcomes and management tools.' : 'A little closer to your next home.'}
+        subtitle={
+          user.role === 'admin'
+            ? 'Open live outcomes and management tools.'
+            : 'A little closer to your next home.'
+        }
       />
       <section className="dashboard-welcome">
         <div>
@@ -183,27 +204,38 @@ export default function DashboardPage({ user, setPage,setSelected }) {
           ))}
         </div>
       )}
-      {user.role==='admin'?<AdminAnalytics/>:<>
-        <div className="dashboard-section-title">
-          <h2>Make your next move</h2>
-          <span className="muted">Everything you need, in one place</span>
-        </div>
-        <div className="dashboard-actions">
-          {cards.map(([target, title, description, icon]) => (
-            <button key={target} onClick={() => setPage(target)}>
-              <span className="action-symbol">{icon}</span>
-              <h3>{title}</h3>
-              <p>{description}</p>
-              <b>Open {target.toLowerCase()} →</b>
-            </button>
-          ))}
-        </div>
-      </>}
-      <div className={`dashboard-bottom ${!student?'activity-full':''}`}>
+      {user.role === 'admin' ? (
+        <AdminAnalytics />
+      ) : (
+        <>
+          <div className="dashboard-section-title">
+            <h2>Make your next move</h2>
+            <span className="muted">Everything you need, in one place</span>
+          </div>
+          <div className="dashboard-actions">
+            {cards.map(([target, title, description, icon]) => (
+              <button key={target} onClick={() => setPage(target)}>
+                <span className="action-symbol">{icon}</span>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <b>Open {target.toLowerCase()} →</b>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className={`dashboard-bottom ${!student ? 'activity-full' : ''}`}>
         <section className="dashboard-panel">
           <div className="dashboard-section-title">
             <h2>Recent activity</h2>
-            <span className="activity-heading-note">Your latest updates {unread>0&&<span className="notification-badge" aria-label={`${unread} unread notifications`}>{unread>99?'99+':unread}</span>}</span>
+            <span className="activity-heading-note">
+              Your latest updates{' '}
+              {unread > 0 && (
+                <span className="notification-badge" aria-label={`${unread} unread notifications`}>
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
+            </span>
           </div>
           {notifications.length ? (
             <div className="stack">
@@ -216,12 +248,22 @@ export default function DashboardPage({ user, setPage,setSelected }) {
                   <div>
                     <b>{item.type.replaceAll('_', ' ')}</b>
                     <p>{item.message}</p>
-                    {item.related_entity_type === 'deleted_listing' && <small>This listing was removed. This notification preserves its last known details: ${item.metadata?.before?.rent}/week · available {item.metadata?.before?.available_from || 'not specified'}.</small>}
+                    {item.related_entity_type === 'deleted_listing' && (
+                      <small>
+                        This listing was removed. This notification preserves its last known
+                        details: ${item.metadata?.before?.rent}/week · available{' '}
+                        {item.metadata?.before?.available_from || 'not specified'}.
+                      </small>
+                    )}
                   </div>
                   <small>{formatDate(item.created_at)}</small>
                 </button>
               ))}
-              {notifications.length > 5 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show fewer' : 'Show all updates'}</button>}
+              {notifications.length > 5 && (
+                <button className="text-button" onClick={() => setShowAll(!showAll)}>
+                  {showAll ? 'Show fewer' : 'Show all updates'}
+                </button>
+              )}
             </div>
           ) : (
             <div className="dashboard-empty">
@@ -253,17 +295,29 @@ export default function DashboardPage({ user, setPage,setSelected }) {
           </aside>
         ) : null}
       </div>
-      {user.role !== 'admin' && <section className="dashboard-panel" id="my-reports">
-        <h2>My reports & outcomes</h2>
-        {!reports.length && <p>No reports submitted.</p>}
-        {reports.map((report) => <article id={`my-report-${report.report_id}`} className={`row-card ${String(focusedReport)===String(report.report_id)?'focused-record':''}`} key={report.report_id}>
-          <div>
-            <h3>{report.reason}</h3>
-            <p>{report.target_snapshot?.title || report.target_snapshot?.name} · {formatDate(report.created_at)} · {report.resolution_action?'Upheld':report.status}</p>
-            <p>{report.resolution_note || 'Awaiting administrator review.'}</p>
-          </div>
-        </article>)}
-      </section>}
+      {user.role !== 'admin' && (
+        <section className="dashboard-panel" id="my-reports">
+          <h2>My reports & outcomes</h2>
+          {!reports.length && <p>No reports submitted.</p>}
+          {reports.map((report) => (
+            <article
+              id={`my-report-${report.report_id}`}
+              className={`row-card ${String(focusedReport) === String(report.report_id) ? 'focused-record' : ''}`}
+              key={report.report_id}
+            >
+              <div>
+                <h3>{report.reason}</h3>
+                <p>
+                  {report.target_snapshot?.title || report.target_snapshot?.name} ·{' '}
+                  {formatDate(report.created_at)} ·{' '}
+                  {report.resolution_action ? 'Upheld' : report.status}
+                </p>
+                <p>{report.resolution_note || 'Awaiting administrator review.'}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </main>
   );
 }
