@@ -8,6 +8,8 @@ const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
 const { storeListingEmbedding, enhancedSafetyCheck } = require('../services/aiService');
+
+// Shared projection keeps listing responses consistent across endpoints.
 const select = `
   SELECT l.*,
     u.full_name advertiser_name, pr.advertiser_bio,
@@ -22,6 +24,8 @@ const select = `
   LEFT JOIN listing_photo p ON p.listing_id = l.listing_id
 `;
 const grouped = ' GROUP BY l.listing_id,u.full_name,u.phone,pr.advertiser_bio,pr.display_phone';
+
+// Replace the ordered photo set inside the caller's transaction.
 const savePhotos = async (database, listingId, photos = []) => {
   await database.query('DELETE FROM listing_photo WHERE listing_id=$1', [listingId]);
   for (const [index, photoUrl] of photos.filter(Boolean).slice(0, 5).entries())
@@ -45,18 +49,29 @@ const listingValues = (d, owner) => [
   d.house_rules || null,
   JSON.stringify(d.utilities || {}),
   JSON.stringify(d.transport_options || []),
+  JSON.stringify(d.lifestyle_tags || []),
   d.available_from,
   d.status || 'available',
 ];
-const { searchFilters,extraListingConditions } = require('../services/listingFilters');
+const { searchFilters, extraListingConditions } = require('../services/listingFilters');
+
+// Include existing values during edits so retired categories remain valid.
+const activeRoomTypes = async (extra = []) => {
+  const { rows } = await pool.query(
+    "SELECT name FROM listing_category WHERE kind='room_type' AND is_active=true ORDER BY lower(name)"
+  );
+  return [...new Set([...rows.map((row) => row.name), ...extra])];
+};
 
 router.get(
   '/',
   asyncRoute(async (req, res) => {
-    const { q, city, suburb, roomType, availableFrom,transport,utilities,lifestyle } = searchFilters(req.query);
+    const roomTypes = await activeRoomTypes();
+    const { q, city, suburb, roomType, availableFrom, transport, utilities, lifestyle } =
+      searchFilters(req.query, roomTypes);
     let rentFilters;
     try {
-      rentFilters = searchFilters(req.query);
+      rentFilters = searchFilters(req.query, roomTypes);
     } catch (error) {
       return fail(res, 400, error.message);
     }
@@ -77,18 +92,27 @@ router.get(
       rentFilters.maxRent,
       roomType,
       availableFrom || null,
-      transport,utilities,lifestyle,suburb,
+      transport,
+      utilities,
+      lifestyle,
+      suburb,
     ]);
     res.json({ listings: rows });
   })
 );
-router.get('/areas',asyncRoute(async(req,res)=>{
-  const city=v.text(req.query.city,'City',120);
-  if(!city)return res.json({areas:[]});
-  const {rows}=await pool.query(`SELECT DISTINCT trim(suburb) AS name FROM listing WHERE status='available'
-    AND lower(city)=lower($1) AND trim(COALESCE(suburb,''))<>'' ORDER BY name`,[city]);
-  res.json({areas:rows.map(x=>x.name)});
-}));
+router.get(
+  '/areas',
+  asyncRoute(async (req, res) => {
+    const city = v.text(req.query.city, 'City', 120);
+    if (!city) return res.json({ areas: [] });
+    const { rows } = await pool.query(
+      `SELECT DISTINCT trim(suburb) AS name FROM listing WHERE status='available'
+    AND lower(city)=lower($1) AND trim(COALESCE(suburb,''))<>'' ORDER BY name`,
+      [city]
+    );
+    res.json({ areas: rows.map((x) => x.name) });
+  })
+);
 router.get(
   '/mine',
   auth,
@@ -107,7 +131,8 @@ router.get(
     const {
       rows: [listing],
     } = await pool.query(`${select} WHERE l.listing_id=$1${grouped}`, [req.params.id]);
-    if (!listing) return fail(res, 404, 'Listing not found.');
+    if (!listing) 
+      return fail(res, 404, 'Listing not found.');
     res.json({ listing });
   })
 );
@@ -117,16 +142,16 @@ router.post(
   allow('advertiser', 'admin'),
   aiRateLimit,
   asyncRoute(async (req, res) => {
-    const d = v.listing(req.body);
+    const d = v.listing(req.body, await activeRoomTypes());
     const sql = `
       INSERT INTO listing (
         advertiser_id, title, description, rent, bond, address, suburb, city,
         room_type, bedrooms, bathrooms, house_rules, utilities,
-        transport_options, available_from, status
+        transport_options, lifestyle_tags, available_from, status
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, $16
+        $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17
       )
       RETURNING *
     `;
@@ -140,9 +165,14 @@ router.post(
       } = await client.query(sql, listingValues(d, req.user.userId)));
       await savePhotos(client, listing.listing_id, d.photos);
       if (!screening.safe)
-        await createReport(client,{reporterId:req.user.userId,listingId:listing.listing_id,
-          userId:listing.advertiser_id,reason:'AI safety screening',description:screening.flags.join(' '),
-          snapshot:{listing_id:listing.listing_id,title:listing.title}});
+        await createReport(client, {
+          reporterId: req.user.userId,
+          listingId: listing.listing_id,
+          userId: listing.advertiser_id,
+          reason: 'AI safety screening',
+          description: screening.flags.join(' '),
+          snapshot: { listing_id: listing.listing_id, title: listing.title },
+        });
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -172,7 +202,7 @@ router.put(
     if (!old) return fail(res, 404, 'Listing not found.');
     if (req.user.role !== 'admin' && old.advertiser_id !== req.user.userId)
       return fail(res, 403, 'You can only edit your own listings.');
-    const d = v.listing(req.body);
+    const d = v.listing(req.body, await activeRoomTypes([old.room_type]));
     const screening = await enhancedSafetyCheck(d);
     const sql = `
       UPDATE listing SET
@@ -189,9 +219,10 @@ router.put(
         house_rules = $11,
         utilities = $12::jsonb,
         transport_options = $13::jsonb,
-        available_from = $14,
-        status = $15, updated_at = now()
-      WHERE listing_id = $16
+        lifestyle_tags = $14::jsonb,
+        available_from = $15,
+        status = $16, updated_at = now()
+      WHERE listing_id = $17
       RETURNING *
     `;
     const values = listingValues(d, old.advertiser_id).slice(1);
@@ -200,24 +231,36 @@ router.put(
     let listing;
     try {
       await client.query('BEGIN');
-      const {rows:[before]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[old.listing_id]);
-      if(!before)throw v.invalid('Listing not found.',404);
+      const {
+        rows: [before],
+      } = await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE', [
+        old.listing_id,
+      ]);
+      if (!before) throw v.invalid('Listing not found.', 404);
       ({
         rows: [listing],
       } = await client.query(sql, values));
       if (!listing) throw v.invalid('Listing not found.', 404);
       if (Array.isArray(d.photos)) await savePhotos(client, old.listing_id, d.photos);
-      await notifyListingChange(client,before,listing);
-      // 房源更新已锁定该行，避免并发编辑产生重复待处理举报。 | The listing row lock serializes automatic report updates.
+      await notifyListingChange(client, before, listing);
+      // The row lock prevents duplicate pending reports during concurrent edits.
       const risk = screening.safe
         ? 'Latest screening found no flags. Human review of the earlier report is still pending.'
         : screening.flags.join(' ');
-      const pending = await client.query(`UPDATE report SET description=$2
+      const pending = await client.query(
+        `UPDATE report SET description=$2
         WHERE listing_id=$1 AND reason='AI safety screening' AND status='pending' RETURNING report_id`,
-        [old.listing_id, risk]);
-      if (!screening.safe && !pending.rowCount) await createReport(client,{reporterId:req.user.userId,
-        listingId:old.listing_id,userId:old.advertiser_id,reason:'AI safety screening',description:risk,
-        snapshot:{listing_id:old.listing_id,title:listing.title}});
+        [old.listing_id, risk]
+      );
+      if (!screening.safe && !pending.rowCount)
+        await createReport(client, {
+          reporterId: req.user.userId,
+          listingId: old.listing_id,
+          userId: old.advertiser_id,
+          reason: 'AI safety screening',
+          description: risk,
+          snapshot: { listing_id: old.listing_id, title: listing.title },
+        });
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -238,13 +281,18 @@ router.delete(
   auth,
   allow('advertiser', 'admin'),
   asyncRoute(async (req, res) => {
-    await transaction(async client=>{
-    const {rows:[listing]}=await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE',[req.params.id]);
-    if (!listing) throw v.invalid('Listing not found.',404);
-    if (req.user.role !== 'admin' && listing.advertiser_id !== req.user.userId)
-      throw v.invalid('You can only delete your own listings.',403);
-    await notifyListingChange(client,listing,null);
-    await client.query('DELETE FROM listing WHERE listing_id=$1', [req.params.id]);
+    await transaction(async (client) => {
+      const {
+        rows: [listing],
+      } = await client.query('SELECT * FROM listing WHERE listing_id=$1 FOR UPDATE', [
+        req.params.id,
+      ]);
+      if (!listing) 
+        throw v.invalid('Listing not found.', 404);
+      if (req.user.role !== 'admin' && listing.advertiser_id !== req.user.userId)
+        throw v.invalid('You can only delete your own listings.', 403);
+      await notifyListingChange(client, listing, null);
+      await client.query('DELETE FROM listing WHERE listing_id=$1', [req.params.id]);
     });
     res.json({ message: 'Listing deleted.' });
   })
@@ -280,32 +328,33 @@ router.post(
   asyncRoute(async (req, res) => {
     const message = v.text(req.body.message, 'Message', 3000, true);
     const enquiry = await transaction(async (client) => {
-    const {
-      rows: [listing],
-    } = await client.query('SELECT advertiser_id,title,status FROM listing WHERE listing_id=$1 FOR UPDATE', [
-      req.params.id,
-    ]);
-    if (!listing) throw v.invalid('Listing not found.', 404);
-    if (listing.status !== 'available') throw v.invalid(`This listing is ${listing.status}; new enquiries are not allowed.`, 409);
-    const {
-      rows: [enquiry],
-    } = await client.query(
-      'INSERT INTO enquiry(listing_id,student_id,message) VALUES($1,$2,$3) RETURNING *',
-      [req.params.id, req.user.userId, message]
-    );
-    await client.query('INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES ($1,$2,$3)', [
-      enquiry.enquiry_id,
-      req.user.userId,
-      message,
-    ]);
-    await notify(
-      listing.advertiser_id,
-      'enquiry',
-      `New enquiry about “${listing.title}”.`,
-      'enquiry',
-      enquiry.enquiry_id,
-      client
-    );
+      const {
+        rows: [listing],
+      } = await client.query(
+        'SELECT advertiser_id,title,status FROM listing WHERE listing_id=$1 FOR UPDATE',
+        [req.params.id]
+      );
+      if (!listing) throw v.invalid('Listing not found.', 404);
+      if (listing.status !== 'available')
+        throw v.invalid(`This listing is ${listing.status}; new enquiries are not allowed.`, 409);
+      const {
+        rows: [enquiry],
+      } = await client.query(
+        'INSERT INTO enquiry(listing_id,student_id,message) VALUES($1,$2,$3) RETURNING *',
+        [req.params.id, req.user.userId, message]
+      );
+      await client.query(
+        'INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES ($1,$2,$3)',
+        [enquiry.enquiry_id, req.user.userId, message]
+      );
+      await notify(
+        listing.advertiser_id,
+        'enquiry',
+        `New enquiry about “${listing.title}”.`,
+        'enquiry',
+        enquiry.enquiry_id,
+        client
+      );
       return enquiry;
     });
     res.status(201).json({ message: 'Enquiry sent.', enquiry });
@@ -317,15 +366,25 @@ router.post(
   asyncRoute(async (req, res) => {
     const reason = v.text(req.body.reason, 'Reason', 160, true);
     const description = v.text(req.body.description, 'Description', 3000, true);
-    if (!reason || !description) return fail(res, 400, 'A reason and description are required.');
+    if (!reason || !description) 
+      return fail(res, 400, 'A reason and description are required.');
     const {
       rows: [listing],
     } = await pool.query('SELECT advertiser_id,title FROM listing WHERE listing_id=$1', [
       req.params.id,
     ]);
-    if (!listing) return fail(res, 404, 'Listing not found.');
-    await transaction(client=>createReport(client,{reporterId:req.user.userId,listingId:req.params.id,
-      userId:listing.advertiser_id,reason,description,snapshot:{listing_id:Number(req.params.id),title:listing.title}}));
+    if (!listing) 
+      return fail(res, 404, 'Listing not found.');
+    await transaction((client) =>
+      createReport(client, {
+        reporterId: req.user.userId,
+        listingId: req.params.id,
+        userId: listing.advertiser_id,
+        reason,
+        description,
+        snapshot: { listing_id: Number(req.params.id), title: listing.title },
+      })
+    );
     res.status(201).json({ message: 'Report submitted for administrator review.' });
   })
 );

@@ -1,16 +1,40 @@
-//E. Saved items, enquiries, notifications and flatmates.
+// Saved items, enquiries, notifications, and flatmate matching routes.
 const router = require('express').Router();
 const { pool } = require('../config/database');
 const { auth, allow, fail } = require('../middleware/auth');
-const { asyncRoute } = require('../middleware/errorHandler'); //Automatically forward asynchronous errors.
+const { asyncRoute } = require('../middleware/errorHandler');
 const { notify } = require('../services/notificationService');
-const { enhancedFlatmateScores, enhancedFlatmateSearch } = require('../services/aiService');
+const {
+  enhancedFlatmateScores,
+  enhancedFlatmateSearch,
+  rankFlatmatesForSmartSearch,
+} = require('../services/aiService');
 const v = require('../services/validation');
 const { transaction } = require('../services/transaction');
 const { aiRateLimit } = require('../middleware/aiRateLimit');
-const {keywords}=require('../services/listingFilters');
- 
-//E01. SQL template for listings, advertiser names and listing photos.
+const { keywords } = require('../services/listingFilters');
+
+router.get(
+  '/categories',
+  asyncRoute(async (req, res) => {
+    const allowed = [
+      'room_type',
+      'transport',
+      'utility',
+      'listing_lifestyle',
+      'flatmate_lifestyle',
+    ];
+    const kind = v.text(req.query.kind, 'Category type', 40);
+    if (kind && !allowed.includes(kind)) return fail(res, 400, 'Invalid category type.');
+    const { rows } = await pool.query(
+      `SELECT category_id,kind,name FROM listing_category
+    WHERE is_active=true AND ($1='' OR kind=$1) ORDER BY kind,lower(name)`,
+      [kind]
+    );
+    res.json({ categories: rows });
+  })
+);
+
 const compactSelect = `
   SELECT l.*, u.full_name advertiser_name,
     COALESCE(
@@ -22,7 +46,7 @@ const compactSelect = `
   LEFT JOIN listing_photo p ON p.listing_id = l.listing_id
 `;
 
-//E02. Get the current student's saved listings.
+// Return listings saved by the current student.
 router.get(
   '/saved',
   auth,
@@ -40,7 +64,7 @@ router.get(
   })
 );
 
-//E03. Get the user's housing enquiries and the unread message count for each conversation.
+// Return housing enquiries with unread-message counts.
 router.get(
   '/enquiries',
   auth,
@@ -53,7 +77,7 @@ router.get(
         : 'JOIN users u ON u.user_id=e.student_id';
     const where = req.user.role === 'student' ? 'e.student_id=$1' : 'l.advertiser_id=$1';
     const { rows } = await pool.query(
-      // Get the unread message count.
+      // Count unread messages sent by the other participant.
       `
         SELECT e.*, l.title, ${person},
           (
@@ -62,7 +86,7 @@ router.get(
             WHERE m.enquiry_id = e.enquiry_id
             -- The message sender is not the current user.
               AND m.sender_id <> $1
-              -- The message is unread.
+              -- The message has not been read.
               AND m.read_at IS NULL
           ) unread_count
         FROM enquiry e
@@ -77,7 +101,7 @@ router.get(
   })
 );
 
-//E04. Look up an enquiry and its listing, then check existence and access permissions.
+// Load an enquiry and verify that the current user can access it.
 async function accessibleEnquiry(id, user) {
   const {
     rows: [enquiry],
@@ -100,21 +124,21 @@ async function accessibleEnquiry(id, user) {
   return enquiry;
 }
 
-//E05. Get all messages in an enquiry conversation.
+// Return every message in an authorised enquiry conversation.
 router.get(
   '/enquiries/:id/messages',
   auth,
   asyncRoute(async (req, res) => {
-    // Check access to the enquiry.
+    // Verify enquiry access before reading private messages.
     const enquiry = await accessibleEnquiry(req.params.id, req.user);
     if (!enquiry) return fail(res, 404, 'Conversation not found.');
     if (enquiry === 'forbidden') return fail(res, 403, 'This conversation is private.');
-    // Mark unread messages from the other participant in this enquiry as read.
+    // Mark unread messages from the other participant as read.
     await pool.query(
       'UPDATE enquiry_message SET read_at=now() WHERE enquiry_id=$1 AND sender_id<>$2 AND read_at IS NULL',
       [req.params.id, req.user.userId]
     );
-    //Mark the related notifications as read.
+    // Mark notifications linked to this conversation as read.
     await pool.query(
       `
         UPDATE notification SET is_read = true
@@ -138,56 +162,58 @@ router.get(
   })
 );
 
-//E06. Send a message.
+// Send a message in an authorised enquiry conversation.
 router.post(
   '/enquiries/:id/messages',
   auth,
   asyncRoute(async (req, res) => {
-    //Check enquiry existence, access permission and non-empty message content.
+    // Validate conversation access and message content.
     const enquiry = await accessibleEnquiry(req.params.id, req.user);
     const body = v.text(req.body.body, 'Message', 3000, true);
     if (!enquiry) return fail(res, 404, 'Conversation not found.');
     if (enquiry === 'forbidden') return fail(res, 403, 'This conversation is private.');
     if (!body) return fail(res, 400, 'Message cannot be empty.');
-    //Insert the message into the database message table.
+    // Persist the message before notifying the recipient.
     const message = await transaction(async (client) => {
-    await client.query('UPDATE enquiry SET updated_at=now() WHERE enquiry_id=$1', [req.params.id]);
-    const {
-      rows: [message],
-    } = await client.query(
-      'INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES($1,$2,$3) RETURNING *',
-      [req.params.id, req.user.userId, body]
-    );
-    //Identify the other participant.
-    const other =
-      req.user.userId === enquiry.student_id ? enquiry.advertiser_id : enquiry.student_id;
-    //Notify the other participant about the new message.
-    await notify(
-      other,
-      'message',
-      `New message about “${enquiry.title}”.`,
-      'enquiry',
-      enquiry.enquiry_id,
-      client
-    );
-    return message;
+      await client.query('UPDATE enquiry SET updated_at=now() WHERE enquiry_id=$1', [
+        req.params.id,
+      ]);
+      const {
+        rows: [message],
+      } = await client.query(
+        'INSERT INTO enquiry_message(enquiry_id,sender_id,body) VALUES($1,$2,$3) RETURNING *',
+        [req.params.id, req.user.userId, body]
+      );
+      // Resolve the other participant as the notification recipient.
+      const other =
+        req.user.userId === enquiry.student_id ? enquiry.advertiser_id : enquiry.student_id;
+      // Notify the recipient about the new message.
+      await notify(
+        other,
+        'message',
+        `New message about “${enquiry.title}”.`,
+        'enquiry',
+        enquiry.enquiry_id,
+        client
+      );
+      return message;
     });
     res.status(201).json({ message });
   })
 );
 
-//E07. Update enquiry status.
+// Update an enquiry status.
 router.patch(
   '/enquiries/:id/status',
   auth,
   allow('advertiser', 'admin'),
   asyncRoute(async (req, res) => {
-    //Read the requested new status.
+    // Read and validate the requested status.
     const status = req.body.status;
-    //Validate the status.
+    // Only supported workflow states may be stored.
     if (!['pending', 'accepted', 'declined'].includes(status))
       return fail(res, 400, 'Invalid status.');
-    //Check access to the enquiry.
+    // Confirm that the current user can update this enquiry.
     const enquiry = await accessibleEnquiry(req.params.id, req.user);
     if (!enquiry) return fail(res, 404, 'Enquiry not found.');
     if (
@@ -195,31 +221,31 @@ router.patch(
       (req.user.role !== 'admin' && enquiry.advertiser_id !== req.user.userId)
     )
       return fail(res, 403, 'Only the advertiser can change this status.');
-    // Update the status.
+    // Persist the new status.
     const updated = await transaction(async (client) => {
-    const {
-      rows: [updated],
-    } = await client.query('UPDATE enquiry SET status=$1,updated_at=now() WHERE enquiry_id=$2 RETURNING *', [
-      status,
-      req.params.id,
-    ]);
-    if (!updated) throw v.invalid('Enquiry not found.', 404);
-    //Notify the student that the enquiry status has changed.
-    await notify(
-      updated.student_id,
-      'enquiry_update',
-      `Your enquiry about “${enquiry.title}” is now ${status}.`,
-      'enquiry',
-      updated.enquiry_id,
-      client
-    );
-    return updated;
+      const {
+        rows: [updated],
+      } = await client.query(
+        'UPDATE enquiry SET status=$1,updated_at=now() WHERE enquiry_id=$2 RETURNING *',
+        [status, req.params.id]
+      );
+      if (!updated) throw v.invalid('Enquiry not found.', 404);
+      // Notify the student when the advertiser changes the outcome.
+      await notify(
+        updated.student_id,
+        'enquiry_update',
+        `Your enquiry about “${enquiry.title}” is now ${status}.`,
+        'enquiry',
+        updated.enquiry_id,
+        client
+      );
+      return updated;
     });
     res.json({ message: `Enquiry ${status}.`, enquiry: updated });
   })
 );
 
-//E08. Get the notification list.
+// Return notifications for the current user.
 router.get(
   '/notifications',
   auth,
@@ -228,31 +254,30 @@ router.get(
       'SELECT * FROM notification WHERE user_id=$1 ORDER BY created_at DESC',
       [req.user.userId]
     );
-    res.json({ notifications: rows, unread: rows.filter(item=>!item.is_read).length });
+    res.json({ notifications: rows, unread: rows.filter((item) => !item.is_read).length });
   })
 );
 
-//E09. Mark a notification as read.
+// Mark one notification as read.
 router.patch(
   '/notifications/:id/read',
   auth,
   asyncRoute(async (req, res) => {
-    const result=await pool.query(
+    const result = await pool.query(
       'UPDATE notification SET is_read=true WHERE notification_id=$1 AND user_id=$2 RETURNING notification_id',
       [req.params.id, req.user.userId]
     );
-    if(!result.rowCount)return fail(res,404,'Notification not found.');
+    if (!result.rowCount) return fail(res, 404, 'Notification not found.');
     res.json({ message: 'Notification read.' });
   })
 );
 
-//E10. Count unread housing enquiry and flatmate chat messages for the current user.
+// Count unread housing-enquiry and flatmate-chat messages.
 router.get(
   '/unread-count',
   auth,
   asyncRoute(async (req, res) => {
-    // Count unread flatmate and housing enquiry messages separately, then add them together.
-    // Count only unread messages sent by others in conversations involving the current user.
+    // Count only unread messages from others in conversations involving this user.
     const {
       rows: [row],
     } = await pool.query(
@@ -274,26 +299,26 @@ router.get(
   })
 );
 
-//E11. Load candidate flatmates and compute matches using the user, filters and saved-only mode.
-async function loadMatches(userId, filters = {}, savedOnly = false) {
+// Load candidate flatmates, apply filters, and calculate compatibility.
+async function loadMatches(userId, filters = {}, savedOnly = false, smartQuery = '') {
   const {
     rows: [mine],
-    //Read the current user's profile.
+    // Load the current profile as the matching baseline.
   } = await pool.query('SELECT * FROM profiles WHERE user_id=$1', [userId]);
-  // Read lifestyle keywords, location and budget filters.
+  // Normalise lifestyle, location, and budget filters.
   const q = v.text(filters.q, 'Search text', 1000);
   const location = v.text(filters.location, 'Location', 160);
   const city = v.text(filters.city, 'City', 120);
   const suburb = v.text(filters.suburb, 'Area or suburb', 120);
-  if(suburb&&!city)throw v.invalid('Choose a city before choosing an area.');
+  if (suburb && !city) throw v.invalid('Choose a city before choosing an area.');
   const maxBudget = v.number(filters.maxBudget, 'Maximum budget');
-  const study=v.text(filters.studyHabits,'Study habits',160);
-  const lifestyle=keywords(filters.lifestyle);
-  const from=v.date(filters.moveInFrom,'Earliest move-in date');
-  const to=v.date(filters.moveInTo,'Latest move-in date');
-  if(from&&to&&from>to)throw v.invalid('Earliest move-in date cannot be after the latest date.');
-  // Find eligible flatmate profiles and indicate whether the current user has saved each one.
-  // When savedOnly is true, return only saved flatmates that still meet the visibility conditions.
+  const study = v.text(filters.studyHabits, 'Study habits', 160);
+  const lifestyle = keywords(filters.lifestyle);
+  const from = v.date(filters.moveInFrom, 'Earliest move-in date');
+  const to = v.date(filters.moveInTo, 'Latest move-in date');
+  if (from && to && from > to)
+    throw v.invalid('Earliest move-in date cannot be after the latest date.');
+  // Mark saved candidates and optionally return saved profiles only.
   const { rows } = await pool.query(
     `
       SELECT u.user_id, u.full_name, p.budget_min, p.budget_max,
@@ -330,7 +355,12 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
       location ? `%${location}%` : '',
       maxBudget,
       savedOnly,
-      study,lifestyle,from,to,city,suburb,
+      study,
+      lifestyle,
+      from,
+      to,
+      city,
+      suburb,
     ]
   );
   const profileComplete = Boolean(
@@ -340,15 +370,24 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
     mine?.budget_min ||
     mine?.budget_max
   );
-  const scores = await enhancedFlatmateScores(mine, rows);
-  const matches = rows
+  const candidates = smartQuery ? rows.slice(0, 30) : rows;
+  const [scores, smartScores] = await Promise.all([
+    enhancedFlatmateScores(mine, candidates),
+    smartQuery ? rankFlatmatesForSmartSearch(smartQuery, candidates) : Promise.resolve([]),
+  ]);
+  const matches = candidates
     .map((candidate, index) => {
       const result = scores[index];
+      const smartResult = smartScores[index];
       return {
         ...candidate,
         compatibility_score: result.score,
         score_source: result.mode,
         score_breakdown: result.breakdown,
+        smart_search_score: smartResult?.score ?? null,
+        smart_search_source: smartResult?.mode ?? null,
+        smart_search_reason: smartResult?.reason ?? '',
+        smart_search_matches: smartResult?.matched ?? [],
         explanation:
           result.score == null
             ? 'Add your preferences before comparing compatibility.'
@@ -357,16 +396,28 @@ async function loadMatches(userId, filters = {}, savedOnly = false) {
               : 'Local preference scoring is active; Gemini is unavailable or not configured.',
       };
     })
-    .sort((a, b) => (b.compatibility_score ?? -1) - (a.compatibility_score ?? -1));
+    .sort(
+      (a, b) =>
+        (b.smart_search_score ?? -1) - (a.smart_search_score ?? -1) ||
+        (b.compatibility_score ?? -1) - (a.compatibility_score ?? -1)
+    );
   return { matches, profile_complete: profileComplete };
 }
 
-//E12. Return the flatmate matching list.
-router.get('/matches/smart-search',auth,allow('student'),aiRateLimit,asyncRoute(async(req,res)=>{
-  const interpretation=await enhancedFlatmateSearch(req.query.q);
-  const result=await loadMatches(req.user.userId,interpretation);
-  res.json({...result,interpretation,search_mode:interpretation.mode});
-}));
+// Return matching flatmate profiles.
+router.get(
+  '/matches/smart-search',
+  auth,
+  allow('student'),
+  aiRateLimit,
+  asyncRoute(async (req, res) => {
+    const query = v.text(req.query.q, 'Smart search', 1000, true);
+    const interpretation = await enhancedFlatmateSearch(query);
+    // Structured interpretation explains the query; semantic ranking decides result order.
+    const result = await loadMatches(req.user.userId, {}, false, query);
+    res.json({ ...result, interpretation, search_mode: interpretation.mode });
+  })
+);
 router.get(
   '/matches',
   auth,
@@ -378,7 +429,7 @@ router.get(
   })
 );
 
-//E13. Get saved flatmates.
+// Return saved flatmate profiles.
 router.get(
   '/saved-flatmates',
   auth,
@@ -390,7 +441,7 @@ router.get(
   })
 );
 
-// E14. Save a flatmate.
+// Save a flatmate profile.
 router.post(
   '/flatmates/:id/save',
   auth,
@@ -399,7 +450,7 @@ router.post(
     const savedUserId = Number(req.params.id);
     if (!savedUserId || savedUserId === req.user.userId)
       return fail(res, 400, 'Choose another student profile to save.');
-    //Check the target flatmate profile in the database.
+    // Confirm that the target profile exists and can be displayed.
     const { rows } = await pool.query(
       `
         SELECT 1
@@ -414,8 +465,7 @@ router.post(
       [savedUserId]
     );
     if (!rows.length) return fail(res, 404, 'Flatmate profile not found.');
-    // Store the relationship between the current user and the saved flatmate.
-    // Do not insert a duplicate saved relationship.
+    // Ignore duplicate saves of the same profile.
     await pool.query(
       `
         INSERT INTO saved_flatmate(student_id, saved_user_id)
@@ -428,7 +478,7 @@ router.post(
   })
 );
 
-//E15. Remove a flatmate from saved profiles.
+// Remove a flatmate from saved profiles.
 router.delete(
   '/flatmates/:id/save',
   auth,
