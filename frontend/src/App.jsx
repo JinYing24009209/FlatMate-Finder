@@ -1,28 +1,16 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from './services/api';
 import AppLayout from './components/AppLayout';
+import AppPages from './components/AppPages';
 import HomePage from './pages/HomePage';
 import AuthPage from './pages/AuthPage';
-import DashboardPage from './pages/DashboardPage';
-import BrowsePage from './pages/BrowsePage';
 import ListingDetailPage from './pages/ListingDetailPage';
-import ProfilePage from './pages/ProfilePage';
-import EnquiriesPage from './pages/EnquiriesPage';
-import SavedPage from './pages/SavedPage';
-import MatchesPage from './pages/MatchesPage';
-import FlatmateDetailPage from './pages/FlatmateDetailPage';
-import FlatmateEnquiriesPage from './pages/FlatmateEnquiriesPage';
-import ListingFormPage from './pages/ListingFormPage';
-import MyListingsPage from './pages/MyListingsPage';
-import AdminPage from './pages/AdminPage';
-import ReportTargetPage from './pages/ReportTargetPage';
-import OutcomesPage from './pages/OutcomesPage';
-import PaymentPage from './pages/PaymentPage';
 import './styles/app.css';
 import './styles/outcomes.css';
 import './styles/moderation.css';
 import { getDefaultPage, resolveAccountPage } from './utils/accountNavigation';
 
+// Own the application session, navigation history, and top-level views.
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('home');
@@ -30,17 +18,29 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [focusEnquiry, setFocusEnquiry] = useState(null);
-  const [focusTarget,setFocusTarget]=useState(null);
+  const [focusTarget, setFocusTarget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [navigationHistory, setNavigationHistory] = useState([]);
+  const navigationHistoryRef = useRef([]);
+  const [browseState, setBrowseState] = useState(null);
+  const [flatmateSearchState, setFlatmateSearchState] = useState(null);
+
+  const clearNavigationHistory = () => {
+    navigationHistoryRef.current = [];
+    setNavigationHistory([]);
+    window.history.replaceState({ flatMateFinder: true }, '');
+  };
   useEffect(() => {
+    // Reset private state when the API reports an invalid session.
     const reset = () => {
       if (!user) return;
       setUser(null);
       setSelected(null);
       setEditing(null);
       setFocusEnquiry(null);
-      setNavigationHistory([]);
+      setBrowseState(null);
+      setFlatmateSearchState(null);
+      clearNavigationHistory();
       setPageState('Dashboard');
       setView('auth');
     };
@@ -52,15 +52,18 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [view, page, selected, editing, focusEnquiry, loading]);
 
-  // Record the current page, including the properties currently being viewed or edited.
+  // Preserve page context so Back can restore selections and edit state.
   const rememberCurrentPage = () => {
-    setNavigationHistory((history) => [
-      ...history,
-      { view, page, selected, editing, focusEnquiry },
-    ]);
+    const snapshot = { view, page, selected, editing, focusEnquiry };
+    setNavigationHistory((history) => {
+      const next = [...history, snapshot];
+      navigationHistoryRef.current = next;
+      return next;
+    });
+    window.history.pushState({ flatMateFinder: true }, '');
   };
 
-  // Switch to outer pages such as the home page and login page.
+  // Switch between public, authentication, and account views.
   const navigateView = (nextView) => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     if (nextView === view) return;
@@ -69,19 +72,31 @@ export default function App() {
     setView(nextView);
   };
 
-  // Return to the page you just visited.
-  const goBack = () => {
-    if (navigationHistory.length === 0) return;
-
-    const previous = navigationHistory[navigationHistory.length - 1];
-
-    setNavigationHistory((history) => history.slice(0, -1));
+  // Restore the most recent in-app navigation snapshot.
+  const restorePreviousPage = useCallback(() => {
+    const history = navigationHistoryRef.current;
+    if (history.length === 0) return;
+    const previous = history[history.length - 1];
+    const next = history.slice(0, -1);
+    navigationHistoryRef.current = next;
+    setNavigationHistory(next);
     setView(previous.view);
     setPageState(user ? resolveAccountPage(user, previous.page) : previous.page);
     setSelected(previous.selected);
     setEditing(previous.editing);
     setFocusEnquiry(previous.focusEnquiry);
+  }, [user]);
+
+  const goBack = () => {
+    if (navigationHistoryRef.current.length) window.history.back();
   };
+
+  useEffect(() => {
+    window.history.replaceState({ flatMateFinder: true }, '');
+    const handlePopState = () => restorePreviousPage();
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [restorePreviousPage]);
 
   const canGoBack = navigationHistory.length > 0;
 
@@ -97,7 +112,7 @@ export default function App() {
   }, []);
 
   const setPage = (next, options = {}) => {
-    setFocusTarget(options.focusTarget||null);
+    setFocusTarget(options.focusTarget || null);
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     next = resolveAccountPage(user, next);
     const nextFocus = next === 'Enquiries' ? options.enquiryId || focusEnquiry : null;
@@ -154,11 +169,13 @@ export default function App() {
         setUser={(value) => {
           setUser(value);
 
-          setNavigationHistory([]);
+          clearNavigationHistory();
           setPageState(getDefaultPage(value));
           setSelected(null);
           setEditing(null);
           setFocusEnquiry(null);
+          setBrowseState(null);
+          setFlatmateSearchState(null);
           setView('app');
         }}
         onBack={goBack}
@@ -167,46 +184,14 @@ export default function App() {
   const logout = async () => {
     await api('/auth/logout', { method: 'POST' });
     setUser(null);
-    setNavigationHistory([]);
+    clearNavigationHistory();
     setSelected(null);
     setEditing(null);
     setFocusEnquiry(null);
+    setBrowseState(null);
+    setFlatmateSearchState(null);
     setView('home');
     setPageState('Dashboard');
-  };
-  const pages = {
-    Dashboard: <DashboardPage user={user} setPage={setPage} setSelected={setSelected} />,
-    'Browse listings': <BrowsePage user={user} setPage={setPage} setSelected={setSelected} />,
-    'Listing detail': (
-      <ListingDetailPage
-        listing={selected}
-        user={user}
-        setPage={setPage}
-        onCheckout={() => setPage('Payment checkout')}
-      />
-    ),
-    'Payment checkout': <PaymentPage listing={selected} setPage={setPage} />,
-    'Successful payments': <OutcomesPage key="payments" setPage={setPage} setSelected={setSelected}/>,
-    'Matched flatmates': <OutcomesPage key="confirmed" flatmates setPage={setPage} setSelected={setSelected}/>,
-    'My profile': <ProfilePage user={user} />,
-    Enquiries:
-      user?.student_type === 'flatmate' ? (
-        <FlatmateEnquiriesPage key={focusEnquiry || 'inbox'} user={user} focusId={focusEnquiry} />
-      ) : (
-        <EnquiriesPage user={user} focusId={focusEnquiry} />
-      ),
-    'Saved listings': <SavedPage setPage={setPage} setSelected={setSelected} />,
-    'Flatmate matches': <MatchesPage key="matches" setPage={setPage} setSelected={setSelected} />,
-    'Saved flatmates': (
-      <MatchesPage key="saved-flatmates" savedOnly setPage={setPage} setSelected={setSelected} />
-    ),
-    'Flatmate detail': (
-      <FlatmateDetailPage key={selected?.user_id} person={selected} setPage={setPage} />
-    ),
-    'Create listing': <ListingFormPage editing={editing} setPage={setPage} />,
-    'My listings': <MyListingsPage setPage={setPage} setEditing={setEditing} focusTarget={focusTarget} />,
-    'Platform management': <AdminPage setPage={setPage} setSelected={setSelected} focusTarget={focusTarget} />,
-    'Report target': <ReportTargetPage target={selected} setPage={setPage} />,
   };
   const activePage = resolveAccountPage(user, page);
   return (
@@ -219,7 +204,21 @@ export default function App() {
       onBack={goBack}
       canGoBack={canGoBack}
     >
-      {pages[activePage] || pages.Dashboard}
+      <AppPages
+        activePage={activePage}
+        browseState={browseState}
+        flatmateSearchState={flatmateSearchState}
+        editing={editing}
+        focusEnquiry={focusEnquiry}
+        focusTarget={focusTarget}
+        selected={selected}
+        setEditing={setEditing}
+        setBrowseState={setBrowseState}
+        setFlatmateSearchState={setFlatmateSearchState}
+        setPage={setPage}
+        setSelected={setSelected}
+        user={user}
+      />
     </AppLayout>
   );
 }

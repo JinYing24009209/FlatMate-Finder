@@ -149,18 +149,25 @@ export default function HomePage({ user, onStart, onBrowse, onListing, onBack, c
           <span>01</span>
           <h3>Find your next room</h3>
           <p>
-            Explore rooms by city, area, rent and move-in date. Save your shortlist and contact advertisers in one place.
+            Explore rooms by city, area, rent and move-in date. Save your shortlist and contact
+            advertisers in one place.
           </p>
         </article>
         <article>
           <span>02</span>
           <h3>Meet your kind of flatmate</h3>
-          <p>Compare budgets, study routines and lifestyles. Chat privately and confirm a match when you both agree.</p>
+          <p>
+            Compare budgets, study routines and lifestyles. Chat privately and confirm a match when
+            you both agree.
+          </p>
         </article>
         <article>
           <span>03</span>
           <h3>A little help from AI</h3>
-          <p>Search naturally, read listing summaries and explore recommendations and safety signals, with local fallback when AI is unavailable.</p>
+          <p>
+            Search naturally with Gemini, with a simple local keyword fallback when AI is
+            unavailable, and explore summaries, recommendations and safety signals.
+          </p>
         </article>
       </section>
       <section className="home-cta">

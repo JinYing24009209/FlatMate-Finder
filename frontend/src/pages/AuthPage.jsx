@@ -1,8 +1,8 @@
-// A.登录和注册的前端页面 | A. Frontend login and registration page.
+// Login and registration page.
 import { useState } from 'react';
 import { api } from '../services/api';
 
-//A01:模式（登录或注册），输入信息，错误展示，防止重复提交（重复按按钮） | A01. Store the mode, inputs, errors and busy state to prevent repeated submissions.
+// Track the form mode, input values, errors, and submission state.
 export default function AuthPage({ setUser, onBack }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({
@@ -16,10 +16,10 @@ export default function AuthPage({ setUser, onBack }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  //A02：根据发生变化的输入框名称，更新对应字段，同时保留其他字段。 | A02. Update the changed input field by name while preserving other fields.
+  // Update only the field that triggered the change event.
   const change = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-  //A03：最后的提交按钮，处理表单提交：发送请求，成功后更新用户状态，失败时展示错误。 | A03. Handle submission: send the request, update user state on success and show errors on failure.
+  // Submit credentials and surface any API error to the user.
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -34,7 +34,7 @@ export default function AuthPage({ setUser, onBack }) {
     }
   };
 
-  //A04：登录注册前端页面 | A04. Render the login and registration page.
+  // Reuse one form for both login and registration.
   return (
     <main className="auth-page">
       <section className="auth-card">

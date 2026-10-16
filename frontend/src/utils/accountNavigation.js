@@ -1,4 +1,11 @@
-const housingPages = ['Dashboard', 'Browse listings', 'Saved listings', 'Successful payments', 'Enquiries', 'My profile'];
+const housingPages = [
+  'Dashboard',
+  'Browse listings',
+  'Saved listings',
+  'Successful payments',
+  'Enquiries',
+  'My profile',
+];
 
 const flatmatePages = [
   'Dashboard',
@@ -36,7 +43,7 @@ export function getDefaultPage(user) {
 }
 
 export function resolveAccountPage(user, requestedPage) {
-  if(user?.role==='admin' && requestedPage==='Report target')return requestedPage;
+  if (user?.role === 'admin' && requestedPage === 'Report target') return requestedPage;
   const pages = getAccountPages(user);
 
   if (pages.includes(requestedPage)) {

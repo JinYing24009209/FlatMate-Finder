@@ -1,3 +1,4 @@
+// Keep smart search visually separate from deterministic filters.
 export default function SearchSections({
   smartText,
   onSmartText,
@@ -13,7 +14,6 @@ export default function SearchSections({
         <p className="muted">
           Describe what you need. This search is separate from the filters below.
         </p>
-
         <form
           className="smart-search-row"
           onSubmit={(e) => {
@@ -33,7 +33,6 @@ export default function SearchSections({
           </button>
         </form>
       </section>
-
       <section className="search-panel standard-search" aria-label="Standard search">
         <h2>Standard search</h2>
         {children}
