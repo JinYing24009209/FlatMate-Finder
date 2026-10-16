@@ -1,8 +1,9 @@
-// ai：Listing Summary
+// Generate concise listing summaries with Gemini and a local fallback.
+// Owner: Xiangxiao Li
 
-const {generateGeminiJson}=require('./geminiClient');
+const { generateGeminiJson } = require('./geminiClient');
 
-// External AI invocation
+// Gemini implementation.
 async function generateListingSummary(listing) {
   // 1. GEMINI IMPLEMENTATION
   try {
@@ -23,8 +24,7 @@ async function generateListingSummary(listing) {
         }),
       ].join('\n')
     );
-    if (result?.summary)
-      return { summary: removeIsoTimes(result.summary), mode: 'gemini' };
+    if (result?.summary) return { summary: removeIsoTimes(result.summary), mode: 'gemini' };
   } catch (error) {
     console.warn(`AI summary fallback: ${error.message}`);
   }
@@ -32,7 +32,7 @@ async function generateListingSummary(listing) {
   return { summary: summariseListing(listing), mode: 'local-fallback' };
 }
 
-// Local translation
+// Local fallback used when Gemini is unavailable.
 function summariseListing({ description = '', rent, city, available_from }) {
   const sentence = description.split(/(?<=[.!?])\s+/)[0].slice(0, 220);
   return [
@@ -58,4 +58,4 @@ function removeIsoTimes(value = '') {
   );
 }
 
-module.exports={generateListingSummary,summariseListing,formatDateOnly};
+module.exports = { generateListingSummary, summariseListing, formatDateOnly };

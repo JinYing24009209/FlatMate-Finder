@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import CitySelect from '../components/CitySelect';
 import PageHeader from '../components/PageHeader';
 import PhotoUploader from '../components/PhotoUploader';
-import DateInput from '../components/DateInput';
+import MoveInDateSelect from '../components/MoveInDateSelect';
+import LocationFilters from '../components/LocationFilters';
+import { CategoryMultiSelect, CategorySelect } from '../components/CategorySelect';
+import useCategories from '../hooks/useCategories';
 import { api } from '../services/api';
+
+// Provide stable defaults for both create and edit flows.
 const blank = {
   title: '',
   description: '',
@@ -20,9 +24,11 @@ const blank = {
   status: 'available',
   utilities: {},
   transport_options: [],
+  lifestyle_tags: [],
   photos: [],
 };
 export default function ListingFormPage({ editing, setPage }) {
+  // Convert persisted listing data into form-friendly values.
   const initial = editing
     ? {
         ...editing,
@@ -35,14 +41,20 @@ export default function ListingFormPage({ editing, setPage }) {
   const [form, setForm] = useState(initial);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [transportText,setTransportText]=useState((initial.transport_options||[]).join(', '));
-  const [utilitiesText,setUtilitiesText]=useState(Object.keys(initial.utilities||{}).filter(key=>initial.utilities[key]).join(', '));
+  const [transport, setTransport] = useState(initial.transport_options || []);
+  const [utilities, setUtilities] = useState(
+    Object.keys(initial.utilities || {}).filter((key) => initial.utilities[key])
+  );
+  const [lifestyle, setLifestyle] = useState(initial.lifestyle_tags || []);
+  const { options } = useCategories();
   const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  // Rebuild category arrays into the API's expected listing payload.
   const payload = () => ({
     ...form,
     bedrooms: 1,
-    utilities: Object.fromEntries(utilitiesText.split(',').map(x=>x.trim()).filter(Boolean).map(x=>[x,true])),
-    transport_options: transportText.split(',').map(x=>x.trim()).filter(Boolean),
+    utilities: Object.fromEntries(utilities.map((x) => [x, true])),
+    transport_options: transport,
+    lifestyle_tags: lifestyle,
   });
   const save = async () => {
     setBusy(true);
@@ -80,12 +92,13 @@ export default function ListingFormPage({ editing, setPage }) {
           </label>
           <label>
             Room type
-            <select name="room_type" value={form.room_type} onChange={change}>
-              <option>Single room</option>
-              <option>Double room</option>
-              <option>Shared room</option>
-              <option>Studio</option>
-            </select>
+            <CategorySelect
+              name="room_type"
+              required
+              options={options('room_type')}
+              value={form.room_type}
+              onChange={change}
+            />
           </label>
           <label>
             Weekly rent
@@ -114,22 +127,21 @@ export default function ListingFormPage({ editing, setPage }) {
             Street address
             <input name="address" required value={form.address} onChange={change} />
           </label>
-          <label>
-            Suburb
-            <input name="suburb" value={form.suburb} onChange={change} />
-          </label>
-          <label>
-            City
-            <CitySelect required value={form.city} onChange={change} />
-          </label>
+          <LocationFilters
+            showLabels
+            cityLabel="City"
+            suburbLabel="Suburb"
+            city={form.city}
+            suburb={form.suburb}
+            onChange={({ city, suburb }) => setForm({ ...form, city, suburb })}
+          />
           <label>
             Available from
-            <DateInput
-              name="available_from"
-              aria-label="Available from"
-              required
+            <MoveInDateSelect
+              label="Available from"
+              allowFlexible={false}
               value={String(form.available_from || '').slice(0, 10)}
-              onChange={change}
+              onChange={(value) => setForm({ ...form, available_from: value })}
             />
           </label>
           <label>
@@ -159,9 +171,33 @@ export default function ListingFormPage({ editing, setPage }) {
             House rules
             <textarea name="house_rules" value={form.house_rules || ''} onChange={change} />
           </label>
-          <label>Facilities & utilities included<input value={utilitiesText} maxLength={3000} onChange={e=>setUtilitiesText(e.target.value)} placeholder="Power, water, fibre internet" /></label>
-          <label>Transport access<input value={transportText} maxLength={3000} onChange={e=>setTransportText(e.target.value)} placeholder="Bus stop 2 minutes away, cycle lane" /></label>
-          <p className="muted">Enter your own descriptions, separated by commas. Up to 20 entries, 160 characters each.</p>
+          <label>
+            Facilities & utilities included
+            <CategoryMultiSelect
+              label="Facilities and utilities"
+              options={options('utility')}
+              value={utilities}
+              onChange={setUtilities}
+            />
+          </label>
+          <label>
+            Transport access
+            <CategoryMultiSelect
+              label="Transport access"
+              options={options('transport')}
+              value={transport}
+              onChange={setTransport}
+            />
+          </label>
+          <label>
+            Life in the flat
+            <CategoryMultiSelect
+              label="Life in the flat"
+              options={options('listing_lifestyle')}
+              value={lifestyle}
+              onChange={setLifestyle}
+            />
+          </label>
         </div>
         <PhotoUploader photos={form.photos} onChange={(photos) => setForm({ ...form, photos })} />
       </section>

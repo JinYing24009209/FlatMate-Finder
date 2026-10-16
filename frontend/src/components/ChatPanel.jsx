@@ -2,31 +2,43 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { startPolling } from '../utils/polling';
 const labels = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined' };
+
+// Poll one enquiry conversation while preserving the reader's scroll position.
 export default function ChatPanel({ enquiry, user, onStatusChange }) {
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
-  const [sending,setSending]=useState(false);
-  const live=useRef(false), sequence=useRef(0), panel=useRef(null), nearBottom=useRef(true);
+  const [sending, setSending] = useState(false);
+  const live = useRef(false),
+    sequence = useRef(0),
+    panel = useRef(null),
+    nearBottom = useRef(true);
   const load = useCallback(async () => {
-    const request=++sequence.current;
+    // Ignore responses from requests superseded by a newer poll.
+    const request = ++sequence.current;
     try {
       const data = await api(`/enquiries/${enquiry.enquiry_id}/messages`);
-      if(!live.current || request!==sequence.current)return;
+      if (!live.current || request !== sequence.current) return;
       setMessages(data.messages);
       setError('');
       window.dispatchEvent(new Event('unread-changed'));
     } catch (e) {
-      if(live.current && request===sequence.current)setError(e.message);
+      if (live.current && request === sequence.current) setError(e.message);
     }
   }, [enquiry.enquiry_id]);
   useEffect(() => {
-    live.current=true;
+    live.current = true;
     load();
-    const stop=startPolling(load);
-    return()=>{live.current=false;sequence.current++;stop();};
+    const stop = startPolling(load);
+    return () => {
+      live.current = false;
+      sequence.current++;
+      stop();
+    };
   }, [load]);
-  useEffect(()=>{if(panel.current && nearBottom.current)panel.current.scrollTop=panel.current.scrollHeight;},[messages]);
+  useEffect(() => {
+    if (panel.current && nearBottom.current) panel.current.scrollTop = panel.current.scrollHeight;
+  }, [messages]);
   const send = async (e) => {
     e.preventDefault();
     if (!body.trim() || sending) return;
@@ -36,11 +48,15 @@ export default function ChatPanel({ enquiry, user, onStatusChange }) {
         method: 'POST',
         body: JSON.stringify({ body }),
       });
-      if(live.current){setBody('');nearBottom.current=true;load();}
+      if (live.current) {
+        setBody('');
+        nearBottom.current = true;
+        load();
+      }
     } catch (err) {
-      if(live.current)setError(err.message);
+      if (live.current) setError(err.message);
     } finally {
-      if(live.current)setSending(false);
+      if (live.current) setSending(false);
     }
   };
   const decide = async (status) => {
@@ -77,7 +93,14 @@ export default function ChatPanel({ enquiry, user, onStatusChange }) {
           <span className={`status ${enquiry.status}`}>{labels[enquiry.status]}</span>
         )}
       </div>
-      <div className="messages" ref={panel} onScroll={()=>{const p=panel.current;nearBottom.current=p.scrollHeight-p.scrollTop-p.clientHeight<80;}}>
+      <div
+        className="messages"
+        ref={panel}
+        onScroll={() => {
+          const p = panel.current;
+          nearBottom.current = p.scrollHeight - p.scrollTop - p.clientHeight < 80;
+        }}
+      >
         {messages.map((message) => (
           <div
             className={`bubble ${message.sender_id === user.user_id ? 'mine' : ''}`}
@@ -96,7 +119,9 @@ export default function ChatPanel({ enquiry, user, onStatusChange }) {
           disabled={sending}
           onChange={(e) => setBody(e.target.value)}
         />
-        <button className="primary" disabled={sending||!body.trim()}>{sending?'Sending…':'Send'}</button>
+        <button className="primary" disabled={sending || !body.trim()}>
+          {sending ? 'Sending…' : 'Send'}
+        </button>
       </form>
       {error && <p className="error">{error}</p>}
     </section>

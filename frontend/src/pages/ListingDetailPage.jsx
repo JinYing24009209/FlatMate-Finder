@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { api } from '../services/api';
 
-export default function ListingDetailPage({ listing, user, setPage, onSignIn, onCheckout, adminReview=false }) {
+// Present listing details and the actions available for the current role.
+export default function ListingDetailPage({
+  listing,
+  user,
+  setPage,
+  onSignIn,
+  onCheckout,
+  adminReview = false,
+}) {
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState('');
   const [summary, setSummary] = useState('');
@@ -23,6 +31,7 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
     setSaved(null);
     setSaveError('');
 
+    // Saved status is private and only applies to signed-in students.
     if (user?.role === 'student' && listingId != null) {
       api('/saved')
         .then((data) => {
@@ -116,7 +125,11 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
 
   return (
     <main className="content">
-      {adminReview&&<p className="notice">Administrator-only listing review. Availability is shown for moderation, not booking.</p>}
+      {adminReview && (
+        <p className="notice">
+          Administrator-only listing review. Availability is shown for moderation, not booking.
+        </p>
+      )}
       <PageHeader
         title={listing.title}
         subtitle={`${listing.suburb || listing.address}, ${listing.city}`}
@@ -181,12 +194,17 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
               enquiries or payments.
             </p>
           )}
-          <p className="lead-copy">
-            {listing.description || 'The advertiser has not added a description yet.'}
-          </p>
-          {!adminReview&&<button className="outline" onClick={summarise}>
-            ✦ Summarise this listing
-          </button>}
+          <div className="listing-description-panel">
+            <span className="eyebrow">ABOUT THIS HOME</span>
+            <p className="lead-copy">
+              {listing.description || 'The advertiser has not added a description yet.'}
+            </p>
+            {!adminReview && (
+              <button className="outline" onClick={summarise}>
+                ✦ Summarise this listing
+              </button>
+            )}
+          </div>
           {summary && (
             <div className="ai-summary">
               <span>AI SUMMARY · {summaryMode === 'gemini' ? 'GEMINI' : 'LOCAL FALLBACK'}</span>
@@ -196,32 +214,49 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
               </small>
             </div>
           )}
-          <h3>Home details</h3>
-          <dl>
-            <dt>Full address</dt>
-            <dd><address>{fullAddress}</address></dd>
-            <dt>Room</dt>
-            <dd>
-              {listing.room_type} · {listing.bedrooms || 1} bed · {listing.bathrooms || 1} bath
-            </dd>
-            <dt>Available</dt>
-            <dd>{String(listing.available_from).slice(0, 10)}</dd>
-            <dt>Bond</dt>
-            <dd>${listing.bond || 0}</dd>
-            <dt>Utilities</dt>
-            <dd>{utilityNames.join(', ') || 'Ask the advertiser'}</dd>
-            <dt>Transport</dt>
-            <dd>{(listing.transport_options || []).join(', ') || 'Ask the advertiser'}</dd>
-            <dt>House rules</dt>
-            <dd>{listing.house_rules || 'No rules provided'}</dd>
-          </dl>
+          <section className="home-details-section">
+            <h3>Home details</h3>
+            <dl>
+              <dt>Full address</dt>
+              <dd>
+                <address>{fullAddress}</address>
+              </dd>
+              <dt>Room</dt>
+              <dd>
+                {listing.room_type} · {listing.bedrooms || 1} bed · {listing.bathrooms || 1} bath
+              </dd>
+              <dt>Available</dt>
+              <dd>{String(listing.available_from).slice(0, 10)}</dd>
+              <dt>Bond</dt>
+              <dd>${listing.bond || 0}</dd>
+              <dt>Utilities</dt>
+              <dd>{utilityNames.join(', ') || 'Ask the advertiser'}</dd>
+              <dt>Transport</dt>
+              <dd>{(listing.transport_options || []).join(', ') || 'Ask the advertiser'}</dd>
+              <dt>Life in the flat</dt>
+              <dd>{(listing.lifestyle_tags || []).join(', ') || 'Ask the advertiser'}</dd>
+              <dt>House rules</dt>
+              <dd>{listing.house_rules || 'No rules provided'}</dd>
+            </dl>
+          </section>
         </section>
         <aside className="contact-card">
           <span className="eyebrow">ADVERTISER</span>
           <h3>{listing.advertiser_name}</h3>
-          {adminReview ? <><h3>Report review</h3><p>Listing #{listing.listing_id}</p><p>Current status: {listing.status}</p>
-            <p className="muted">Compare these details with the report evidence. This view does not send enquiries or process payments.</p>
-            <button className="outline wide" onClick={()=>setPage('Platform management')}>Return to report management</button></> : user?.role === 'student' ? (
+          {adminReview ? (
+            <>
+              <h3>Report review</h3>
+              <p>Listing #{listing.listing_id}</p>
+              <p>Current status: {listing.status}</p>
+              <p className="muted">
+                Compare these details with the report evidence. This view does not send enquiries or
+                process payments.
+              </p>
+              <button className="outline wide" onClick={() => setPage('Platform management')}>
+                Return to report management
+              </button>
+            </>
+          ) : user?.role === 'student' ? (
             <>
               <textarea
                 value={message}
@@ -307,9 +342,11 @@ export default function ListingDetailPage({ listing, user, setPage, onSignIn, on
               )}
             </>
           )}
-          {!adminReview && <button className="text-button" onClick={() => setPage('Browse listings')}>
-            ← Back to results
-          </button>}
+          {!adminReview && (
+            <button className="text-button" onClick={() => setPage('Browse listings')}>
+              ← Back to results
+            </button>
+          )}
         </aside>
       </div>
     </main>
