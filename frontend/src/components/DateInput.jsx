@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 
 // Explicit year/month/day controls avoid browser-dependent date ordering.
-export default function DateInput({ value = '', onChange, name, required, 'aria-label': label = 'Date' }) {
+export default function DateInput({
+  value = '',
+  onChange,
+  name,
+  required,
+  'aria-label': label = 'Date',
+}) {
   const normalized = String(value || '').slice(0, 10);
   const [parts, setParts] = useState(() => normalized.split('-'));
   useEffect(() => setParts(normalized.split('-')), [normalized]);
@@ -23,13 +29,27 @@ export default function DateInput({ value = '', onChange, name, required, 'aria-
   return (
     <span className="date-input-ymd" role="group" aria-label={`${label} (year, month, day)`}>
       {[
-        ['Year', year, Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i))],
+        [
+          'Year',
+          year,
+          Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i)),
+        ],
         ['Month', month, Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'))],
         ['Day', day, Array.from({ length: dayCount }, (_, i) => String(i + 1).padStart(2, '0'))],
       ].map(([title, selected, options], index) => (
-        <select key={title} aria-label={`${label}: ${title}`} value={selected} required={required} onChange={(event) => change(index, event.target.value)}>
+        <select
+          key={title}
+          aria-label={`${label}: ${title}`}
+          value={selected}
+          required={required}
+          onChange={(event) => change(index, event.target.value)}
+        >
           <option value="">{title}</option>
-          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
         </select>
       ))}
     </span>

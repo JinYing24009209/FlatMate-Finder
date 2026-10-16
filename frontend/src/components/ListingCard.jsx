@@ -1,4 +1,11 @@
-export default function ListingCard({ listing, onOpen, onSave, recommendation, saved = false, paid = false }) {
+export default function ListingCard({
+  listing,
+  onOpen,
+  onSave,
+  recommendation,
+  saved = false,
+  paid = false,
+}) {
   const photo = listing.photos?.[0];
   const unavailable = listing.status && listing.status !== 'available';
   const statusLabels = {
@@ -22,26 +29,33 @@ export default function ListingCard({ listing, onOpen, onSave, recommendation, s
           ⌖ {[listing.suburb, listing.city].filter(Boolean).join(', ')} · {listing.room_type}
         </p>
         <div className="listing-meta">
-          <span>{unavailable ? statusLabels[listing.status] || listing.status : `Available ${String(listing.available_from || '').slice(0, 10)}`}</span>
+          <span>
+            {unavailable
+              ? statusLabels[listing.status] || listing.status
+              : `Available ${String(listing.available_from || '').slice(0, 10)}`}
+          </span>
           <span>{listing.bathrooms || 1} bath</span>
         </div>
         {unavailable && (
           <p className="availability-warning">
-            {paid?'Your payment succeeded. This listing is shown for your records.':'This home cannot currently accept new enquiries.'}
+            {paid
+              ? 'Your payment succeeded. This listing is shown for your records.'
+              : 'This home cannot currently accept new enquiries.'}
           </p>
         )}
         {recommendation && (
-          <p className="ai-score">
-            AI match: {recommendation.score}% — {recommendation.reasons.join(', ')}
-          </p>
+          <div className="smart-match-summary">
+            <p className="ai-score">
+              AI match: {recommendation.score}% —{' '}
+              {recommendation.reason || recommendation.reasons?.join(', ')}
+            </p>
+            {!!recommendation.conflicts?.length && (
+              <p className="match-conflict">Conflicts: {recommendation.conflicts.join(', ')}</p>
+            )}
+          </div>
         )}
         {listing.semantic_source === 'filters' ? (
           <p className="ai-score">Matches all selected filters</p>
-        ) : listing.semantic_score != null ? (
-          <p className="ai-score">
-            Smart search relevance: {listing.semantic_score}% ·{' '}
-            {listing.semantic_source === 'gemini' ? 'Gemini semantic match' : 'local relevance'}
-          </p>
         ) : null}
         <p className="muted">
           {(listing.description || 'No description yet.').slice(0, 130)}

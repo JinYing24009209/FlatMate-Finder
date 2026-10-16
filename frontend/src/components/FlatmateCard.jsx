@@ -1,6 +1,14 @@
 import ProfilePhoto from './ProfilePhoto';
 export default function FlatmateCard({ flatmate, onOpen, onSave, busy = false }) {
-  const score = flatmate.compatibility_score;
+  const smartSearch = flatmate.smart_search_score != null;
+  const score = smartSearch ? flatmate.smart_search_score : flatmate.compatibility_score;
+  const matchLabel = smartSearch
+    ? flatmate.smart_search_source === 'gemini'
+      ? 'Gemini full-profile search match'
+      : 'Local full-profile search match'
+    : flatmate.score_source === 'gemini'
+      ? 'Gemini AI matching'
+      : 'Local fallback matching';
   return (
     <article className="people-card">
       <button
@@ -11,18 +19,20 @@ export default function FlatmateCard({ flatmate, onOpen, onSave, busy = false })
         <div className="people-photo">
           <ProfilePhoto src={flatmate.profile_photo} name={flatmate.full_name} />
           <span className="people-score">
-            {flatmate.mutually_agreed?'✓ Both agreed':`✦ ${score == null ? 'Complete preferences' : `${score}% match`}`}
+            {flatmate.mutually_agreed
+              ? '✓ Both agreed'
+              : `✦ ${score == null ? 'Complete preferences' : `${score}% match`}`}
           </span>
         </div>
         <div className="people-copy">
           <p className="people-location">{flatmate.preferred_location || 'Location flexible'}</p>
           <h2>{flatmate.full_name}</h2>
           <p className="muted">
-            {flatmate.mutually_agreed ? 'Mutually confirmed flatmates' : score == null
-              ? 'Add preferences to compare'
-              : flatmate.score_source === 'gemini'
-                ? 'Gemini AI matching'
-                : 'Local fallback matching'}
+            {flatmate.mutually_agreed
+              ? 'Mutually confirmed flatmates'
+              : score == null
+                ? 'Add preferences to compare'
+                : matchLabel}
           </p>
           <p className="people-budget">
             {flatmate.budget_min != null || flatmate.budget_max != null
@@ -44,14 +54,16 @@ export default function FlatmateCard({ flatmate, onOpen, onSave, busy = false })
         <button className="text-button" onClick={() => onOpen(flatmate)}>
           View details →
         </button>
-        {onSave && <button
-          className={`save-button ${flatmate.is_saved ? 'saved' : ''}`}
-          aria-pressed={!!flatmate.is_saved}
-          disabled={busy}
-          onClick={() => onSave(flatmate)}
-        >
-          {flatmate.is_saved ? '♥ Saved' : '♡ Save'}
-        </button>}
+        {onSave && (
+          <button
+            className={`save-button ${flatmate.is_saved ? 'saved' : ''}`}
+            aria-pressed={!!flatmate.is_saved}
+            disabled={busy}
+            onClick={() => onSave(flatmate)}
+          >
+            {flatmate.is_saved ? '♥ Saved' : '♡ Save'}
+          </button>
+        )}
       </div>
     </article>
   );
