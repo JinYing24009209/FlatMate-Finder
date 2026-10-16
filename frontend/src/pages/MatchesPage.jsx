@@ -5,42 +5,97 @@ import MoveInDateSelect from '../components/MoveInDateSelect';
 import SearchSections from '../components/SearchSections';
 import LocationFilters from '../components/LocationFilters';
 import { api } from '../services/api';
-const empty = { q: '', city: '', suburb: '', maxBudget: '',studyHabits:'',lifestyle:'',moveInFrom:'',moveInTo:'' };
-export default function MatchesPage({ savedOnly = false, setPage, setSelected }) {
-  const [matches, setMatches] = useState([]);
-  const [filters, setFilters] = useState(empty);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [complete, setComplete] = useState(true);
+import { CategoryMultiSelect } from '../components/CategorySelect';
+import useCategories from '../hooks/useCategories';
+const empty = {
+  q: '',
+  city: '',
+  suburb: '',
+  maxBudget: '',
+  studyHabits: '',
+  lifestyle: [],
+  moveInFrom: '',
+  moveInTo: '',
+};
+export default function MatchesPage({
+  savedOnly = false,
+  setPage,
+  setSelected,
+  initialState,
+  onStateChange,
+}) {
+  // Keep the search page intact while a user opens and returns from a profile.
+  const [hasRestoredState] = useState(() => !savedOnly && Boolean(initialState));
+  const [matches, setMatches] = useState(() => initialState?.matches || []);
+  const [filters, setFilters] = useState(() => initialState?.filters || empty);
+  const [loading, setLoading] = useState(() => !initialState);
+  const [error, setError] = useState(() => initialState?.error || '');
+  const [notice, setNotice] = useState(() => initialState?.notice || '');
+  const [complete, setComplete] = useState(() => initialState?.complete ?? true);
   const [saving, setSaving] = useState(null);
-  const [smartText,setSmartText]=useState(''),[searchInfo,setSearchInfo]=useState('');
-  const latest=useRef(0),lastSearch=useRef({values:empty,smart:false});
+  const [smartText, setSmartText] = useState(() => initialState?.smartText || ''),
+    [searchInfo, setSearchInfo] = useState(() => initialState?.searchInfo || '');
+  const latest = useRef(0),
+    lastSearch = useRef(initialState?.lastSearch || { values: empty, smart: false });
+  const { options } = useCategories();
   const load = useCallback(
-    async (values = empty, smart=false) => {
-      const request=++latest.current;lastSearch.current={values,smart};
+    async (values = empty, smart = false) => {
+      const request = ++latest.current;
+      lastSearch.current = { values, smart };
       setLoading(true);
       setError('');
       try {
         const data = await api(
-          savedOnly ? '/saved-flatmates' : `${smart?'/matches/smart-search':'/matches'}?${new URLSearchParams(values)}`
+          savedOnly
+            ? '/saved-flatmates'
+            : `${smart ? '/matches/smart-search' : '/matches'}?${new URLSearchParams(values)}`
         );
-        if(request!==latest.current)return;
+        if (request !== latest.current) return;
         setMatches(data.matches);
         setComplete(data.profile_complete);
-        setSearchInfo(smart?`${data.search_mode==='gemini'?'Gemini interpretation':'Local keyword interpretation'} · Applied filters: ${Object.entries(data.interpretation||{}).filter(([k,v])=>k!=='mode'&&v!==null&&v!==''&&(!Array.isArray(v)||v.length)).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(', '):v}`).join(' · ') || 'none recognised; showing eligible profiles'}`:'Standard filters applied.');
+        setSearchInfo(
+          smart
+            ? `${data.search_mode === 'gemini' ? 'Gemini interpretation' : 'Local keyword interpretation'} · Interpreted criteria: ${
+                Object.entries(data.interpretation || {})
+                  .filter(
+                    ([k, v]) =>
+                      k !== 'mode' && v !== null && v !== '' && (!Array.isArray(v) || v.length)
+                  )
+                  .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                  .join(' · ') || 'none recognised; showing eligible profiles'
+              }. All eligible profiles were ranked using their full profile content.`
+            : 'Standard filters applied.'
+        );
       } catch (e) {
-        if(request===latest.current)setError(e.message);
+        if (request === latest.current) setError(e.message);
       } finally {
-        if(request===latest.current)setLoading(false);
+        if (request === latest.current) setLoading(false);
       }
     },
     [savedOnly]
   );
+
   useEffect(() => {
-    load();
-    return()=>{latest.current++;};
-  }, [load]);
+    if (savedOnly) return;
+
+    onStateChange?.({
+      matches,
+      filters,
+      error,
+      notice,
+      complete,
+      smartText,
+      searchInfo,
+      lastSearch: lastSearch.current,
+    });
+  }, [complete, error, filters, matches, notice, onStateChange, savedOnly, searchInfo, smartText]);
+
+  useEffect(() => {
+    if (!hasRestoredState) load();
+    return () => {
+      latest.current++;
+    };
+  }, [hasRestoredState, load]);
   const save = async (person) => {
     setSaving(person.user_id);
     setNotice('');
@@ -75,8 +130,13 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
         }
       />
       {!savedOnly && (
-        <SearchSections smartText={smartText} onSmartText={setSmartText} busy={loading}
-          onSmartSearch={()=>load({q:smartText},true)} placeholder="e.g. quiet flatmate in Auckland under $300, moving by 2026-12-01">
+        <SearchSections
+          smartText={smartText}
+          onSmartText={setSmartText}
+          busy={loading}
+          onSmartSearch={() => load({ q: smartText }, true)}
+          placeholder="e.g. quiet flatmate in Auckland under $300, moving by 2026-12-01"
+        >
           <form
             className="search-bar"
             onSubmit={(e) => {
@@ -85,49 +145,89 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
             }}
           >
             <div className="search-fields">
-            <input
-              aria-label="Name or lifestyle"
-              placeholder="Name or lifestyle, e.g. tidy"
-              value={filters.q}
-              onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-            />
-            <LocationFilters city={filters.city} suburb={filters.suburb} onChange={location=>setFilters({...filters,...location})}/>
-            <input
-              aria-label="Maximum weekly budget"
-              type="number"
-              min="0"
-              placeholder="Max weekly budget"
-              value={filters.maxBudget}
-              onChange={(e) => setFilters({ ...filters, maxBudget: e.target.value })}
-            />
-            <input aria-label="Study habits" placeholder="Study routine, e.g. morning" maxLength={160} value={filters.studyHabits}
-              onChange={e=>setFilters({...filters,studyHabits:e.target.value})}/>
-            <input aria-label="Lifestyle tags" placeholder="Lifestyle tags, e.g. tidy, quiet" maxLength={800} value={filters.lifestyle}
-              onChange={e=>setFilters({...filters,lifestyle:e.target.value})}/>
-            <div className="move-in-field"><span>Move-in from</span><MoveInDateSelect label="Move-in from" flexibleValue="" value={filters.moveInFrom} onChange={value=>setFilters({...filters,moveInFrom:value})}/></div>
-            <div className="move-in-field"><span>Move-in by</span><MoveInDateSelect label="Move-in by" flexibleValue="" value={filters.moveInTo} onChange={value=>setFilters({...filters,moveInTo:value})}/></div>
+              <input
+                aria-label="Name or lifestyle"
+                placeholder="Name or lifestyle, e.g. tidy"
+                value={filters.q}
+                onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+              />
+              <LocationFilters
+                city={filters.city}
+                suburb={filters.suburb}
+                onChange={(location) => setFilters({ ...filters, ...location })}
+              />
+              <input
+                aria-label="Maximum weekly budget"
+                type="number"
+                min="0"
+                placeholder="Max weekly budget"
+                value={filters.maxBudget}
+                onChange={(e) => setFilters({ ...filters, maxBudget: e.target.value })}
+              />
+              <input
+                aria-label="Study habits"
+                placeholder="Study routine, e.g. morning"
+                maxLength={160}
+                value={filters.studyHabits}
+                onChange={(e) => setFilters({ ...filters, studyHabits: e.target.value })}
+              />
+              <label>
+                Lifestyle tags
+                <CategoryMultiSelect
+                  label="Lifestyle tags"
+                  options={options('flatmate_lifestyle')}
+                  value={filters.lifestyle}
+                  onChange={(lifestyle) => setFilters({ ...filters, lifestyle })}
+                />
+              </label>
+              <div className="move-in-field">
+                <span>Move-in from</span>
+                <MoveInDateSelect
+                  label="Move-in from"
+                  allowFlexible={false}
+                  value={filters.moveInFrom}
+                  onChange={(value) => setFilters({ ...filters, moveInFrom: value })}
+                />
+              </div>
+              <div className="move-in-field">
+                <span>Move-in by</span>
+                <MoveInDateSelect
+                  label="Move-in by"
+                  allowFlexible={false}
+                  value={filters.moveInTo}
+                  onChange={(value) => setFilters({ ...filters, moveInTo: value })}
+                />
+              </div>
             </div>
             <div className="search-actions">
-            <button className="primary" disabled={loading}>
-              {loading ? 'Searching…' : 'Search flatmates'}
-            </button>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => {
-                setFilters(empty);
-                load(empty);
-              }}
-            >
-              Clear
-            </button>
+              <button className="primary" disabled={loading}>
+                {loading ? 'Searching…' : 'Search flatmates'}
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setFilters(empty);
+                  load(empty);
+                }}
+              >
+                Clear
+              </button>
             </div>
           </form>
           <p className="search-hint">
             ✦ Compatibility scores compare shared preferences. Complete your profile for more
-            meaningful results. City and area filter the preferred location. Study routine matches the entered phrase; every lifestyle tag must match a profile tag (case-insensitive). Move-in dates include both endpoints. People who explicitly choose Flexible match any date range; an unspecified date is not treated as Flexible. Maximum budget compares the profile's minimum budget.
+            meaningful results. City and area filter the preferred location. Study routine matches
+            the entered phrase; every lifestyle tag must match a profile tag (case-insensitive).
+            Move-in dates include both endpoints. People who explicitly choose Flexible match any
+            date range; an unspecified date is not treated as Flexible. Maximum budget compares the
+            profile's minimum budget.
           </p>
-          {searchInfo&&<p className="notice" role="status">{searchInfo}</p>}
+          {searchInfo && (
+            <p className="notice" role="status">
+              {searchInfo}
+            </p>
+          )}
         </SearchSections>
       )}
       {!complete && !savedOnly && (
@@ -156,7 +256,10 @@ export default function MatchesPage({ savedOnly = false, setPage, setSelected })
       {error ? (
         <div className="empty" role="alert">
           {error}{' '}
-          <button className="outline" onClick={() => load(lastSearch.current.values,lastSearch.current.smart)}>
+          <button
+            className="outline"
+            onClick={() => load(lastSearch.current.values, lastSearch.current.smart)}
+          >
             Try again
           </button>
         </div>
