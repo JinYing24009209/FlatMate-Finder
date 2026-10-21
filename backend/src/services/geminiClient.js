@@ -1,3 +1,6 @@
+// Shared Gemini client with consistent limits, retries, and timeouts.
+// Feature-specific prompts and local fallbacks live in their own service modules.
+
 let rateLimitCooldownUntil = 0;
 
 function getAiProviderStatus() {
@@ -6,7 +9,7 @@ function getAiProviderStatus() {
     mode: configured ? 'gemini' : 'local',
     configured,
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
-    textModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash',
+    textModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite',
   };
 }
 
@@ -73,6 +76,7 @@ async function generateGeminiJson(prompt, signal) {
     }
   );
   if (response.status === 429) {
+    // Quota errors do not recover through immediate retries; use local fallbacks briefly.
     rateLimitCooldownUntil = Date.now() + 60 * 1000;
     return null;
   }
@@ -83,6 +87,7 @@ async function generateGeminiJson(prompt, signal) {
   try {
     return JSON.parse(text);
   } catch {
+    // Some Gemini models occasionally wrap JSON or leave a trailing comma.
     const unfenced = text
       .replace(/^\s*```(?:json)?\s*/i, '')
       .replace(/\s*```\s*$/i, '')
@@ -97,6 +102,7 @@ async function generateGeminiJson(prompt, signal) {
     try {
       return JSON.parse(repaired);
     } catch {
+      // Invalid model output is equivalent to an unavailable provider.
       return null;
     }
   }

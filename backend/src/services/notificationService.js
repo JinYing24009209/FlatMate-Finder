@@ -7,8 +7,13 @@ const notify = (userId, type, message, entityType = null, entityId = null, datab
     'INSERT INTO notification (user_id,type,message,related_entity_type,related_entity_id) VALUES ($1,$2,$3,$4,$5)',
     [userId, type, message, entityType, entityId]
   );
-const dateOnly = (value) =>
-  value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
+const dateOnly = (value) => {
+  if (!(value instanceof Date)) return String(value || '').slice(0, 10);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 function listingSnapshot(listing) {
   return {
     listing_id: listing.listing_id,
