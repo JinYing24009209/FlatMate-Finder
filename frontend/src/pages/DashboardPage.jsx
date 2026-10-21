@@ -227,7 +227,7 @@ export default function DashboardPage({ user, setPage, setSelected }) {
       <div className={`dashboard-bottom ${!student ? 'activity-full' : ''}`}>
         <section className="dashboard-panel">
           <div className="dashboard-section-title">
-            <h2>Recent activity</h2>
+            <h2>Notifications</h2>
             <span className="activity-heading-note">
               Your latest updates{' '}
               {unread > 0 && (
