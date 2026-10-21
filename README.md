@@ -1,167 +1,143 @@
 # FlatMate Finder
 
-React + Tailwind CSS, Node.js + Express REST API and PostgreSQL coursework project.
+FlatMate Finder is a full-stack student accommodation and flatmate-matching platform. It brings room listings, flatmate discovery, enquiries, notifications, moderation and AI-assisted features into one system.
 
-## Code map
+The application supports three main roles:
 
+- **Students** can search for rooms or flatmates, save results, communicate with other users and follow updates.
+- **Advertisers** can create and manage room listings, answer enquiries and review demonstration payment outcomes.
+- **Administrators** can manage users, listings, reports, staff access and platform categories.
+
+The project uses React, Vite and Tailwind CSS for the frontend, Node.js and Express for the REST API, PostgreSQL for persistent data, and the Gemini API for optional AI assistance. 
+
+## 1. Project structure
+
+```text
+FlatMate-Finder/
+|-- backend/
+|   |-- server.js                 # Express application entry point
+|   |-- src/
+|   |   |-- config/               # PostgreSQL connection settings
+|   |   |-- middleware/           # Authentication, authorisation and error handling
+|   |   |-- routes/               # REST endpoints grouped by feature
+|   |   `-- services/             # Validation, notifications and AI business logic
+|   |-- scripts/                  # Database migration and maintenance scripts
+|   `-- test/                     # Backend unit and integration tests
+|-- frontend/
+|   |-- public/                   # Static public files
+|   |-- src/
+|   |   |-- components/           # Reusable interface components
+|   |   |-- hooks/                # Shared React hooks
+|   |   |-- pages/                # Role-based application screens
+|   |   |-- services/             # Frontend API client
+|   |   |-- styles/               # Global and feature styles
+|   |   `-- utils/                # Frontend helper functions
+|   `-- test/                     # Frontend interaction tests
+|-- database/
+|   |-- schema.sql                # Base PostgreSQL schema
+|   |-- upgrade.sql               # Core non-destructive upgrades
+|   `-- *-upgrade.sql             # Feature-specific migrations
+|-- shared/
+|   |-- nzCities.json             # Shared New Zealand city options
+|   `-- nzSuburbs.json            # Suburbs grouped by city
+|-- render.yaml                   # Render deployment configuration
+`-- README.md
 ```
-frontend/src/
-  pages/        One React file per screen (Home, Browse, Chat, Profile, Admin…)
-  components/   Reusable UI: sidebar, cards, photo uploader, chat panel
-  services/     api.js: every frontend HTTP call
-backend/src/
-  routes/       REST endpoint groups
-  middleware/   Authentication and error handling
-  services/     aiService.js and notificationService.js
-  config/       PostgreSQL connection
-database/       Reproducible schema and non-destructive upgrade scripts
-```
 
-## Requirements implemented
+### Main data flow
 
-- Public homepage, responsive/collapsible sidebar and role-specific workspaces.
-- Student / advertiser authentication with bcrypt + HTTP-only JWT cookie.
-- Invite-only admin registration: use `FMF-ADMIN-2026` once after running the database upgrade, then create private replacement codes from Platform management.
-- Listing CRUD, local photo upload (up to five photos), saving, detailed filtering and listing details.
-- Enquiry chat history: both the student and advertiser can write in the same private conversation; advertiser can accept or decline.
-- Student-only flatmate search and matching, dynamic compatibility explanations, profile cards,
-  favourites and a separate saved-flatmates page. Advertisers deliberately have no matching page.
-- Reporting and moderation workflow: any signed-in user can report a listing; automated safety flags create a pending report and every decision remains with an administrator.
-- Full listing data: rent, bond, address, room details, availability, rules, JSON utilities, transport access, status and up to five photos.
-- Live administrator outcome diagrams for listing publication/status, student needs, enquiry outcomes and flatmate engagement.
-- Coursework-safe rental checkout with server-validated availability and auditable demo payment records. It never collects card details or moves real funds.
+1. React stores the current form and page state.
+2. The frontend API client sends requests to the Express REST API.
+3. Middleware verifies the signed-in user, active account and permitted role.
+4. Route and service modules validate the request and run parameterised PostgreSQL queries.
+5. The API returns JSON, and React updates the page without a full reload.
 
-## Five AI-enhanced functions
 
-1. **Flatmate recommendation** dynamically scores the profile fields both students supplied,
-   including location, budget overlap, study routine and lifestyle similarity.
-2. **Listing recommendation** ranks rooms against budget, location, lifestyle and the student's
-   recent saved-listing patterns.
-3. **Smart search** parses natural-language rent, city, room type, quiet/furnished, lifestyle and
-   transport intent. Gemini embeddings add semantic ranking when stored vectors are available.
-4. **Listing summary** uses Gemini structured output and automatically falls back to a factual,
-   deterministic summary if the provider is unavailable.
-5. **Safety support** combines Gemini review with explainable scam, pressure, incomplete-address
-   and off-platform-contact rules. Flagged listings still require a human administrator decision.
+## 2. Environment and running the project
 
-Each AI service has a clearly labelled Gemini-first section followed by a deterministic local
-fallback. With a Gemini key configured, search
-text and selected public listing fields may be sent to Gemini for embeddings, summaries or safety
-support. Passwords, messages, contact details, account identity and precise street address are not
-included. Automated outputs are decision support, not housing or moderation decisions.
+### Prerequisites
 
-## Run locally
+- Node.js `20.19.0` or later, or Node.js `22.12.0` or later
+- npm
+- An internet connection for the existing Neon database and Gemini API
 
-1. For a fresh database, run `database/schema.sql`. For the existing Neon database, run
-   `npm run migrate` from `backend`; this keeps existing data and also adds the demo payment table.
-2. In `backend`, copy `.env.example` to `.env`, then set `DB_NAME=flatmate_finder_app` and your PostgreSQL password in `DB_PASSWORD`.
-3. Terminal 1:
+### 2.1 Install dependencies
+
+Open a terminal in the project directory and install the backend and frontend packages:
 
 ```powershell
 cd backend
 npm install
+
+cd ..\frontend
+npm install
+```
+
+### 2.2 Use the supplied environment
+
+The repository includes `backend/.env`. It already contains the connection settings for the team's existing Neon database, the backend authentication settings and the Gemini configuration.
+
+### 2.3 Use the existing cloud database
+
+The supplied environment connects directly to the team's existing Neon PostgreSQL database. The schema and current migrations have already been applied.
+
+### 2.4 Start the application
+
+Start the backend in the first terminal:
+
+```powershell
+cd backend
 npm run dev
 ```
 
-4. Terminal 2:
+Start the frontend in a second terminal:
 
 ```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
-5. Visit `http://localhost:5173`. Register the first administrator with the invite code above; do not share it publicly.
+Open `http://localhost:5173`. During local development, Vite forwards `/api` requests to `http://localhost:5000`.
 
-To enable Gemini, keep the key on the server only and set:
 
-```text
-GEMINI_API_KEY=your-server-side-key
-GEMINI_TEXT_MODEL=gemini-3.5-flash
-```
+## 3. Team responsibilities
 
-Provider selection currently follows the presence of `GEMINI_API_KEY`; `AI_MODE` is not a runtime switch. Smart search prefers Gemini when configured and uses its simple local parser and keyword ranking if Gemini is unavailable, over quota or returns an invalid response. Set the text model to one available to your Google account.
-
-## Verification
-
-```powershell
-cd backend
-npm test
-cd ..\frontend
-npm run build
-```
-
-## Deployment note
-
-`render.yaml` defines the API health check and static frontend. For Render/Neon, run
-`database/schema.sql` for a fresh database. For the existing database, run the database migration
-commands through `npm run migrate`. Then set `DATABASE_URL`, `FRONTEND_URL`, `JWT_SECRET`,
-the Gemini variables above, and frontend `VITE_API_URL` (including `/api`). Production uses SSL
-cloud PostgreSQL and cross-site secure HTTP-only cookies.
-
-Before a real launch, replace the bootstrap admin code, use managed object storage instead of database data-URL photos, add email verification/password reset, configure backups and rate limiting, and complete an accessibility/security review.
-
-## Student journeys
-
-### Administrator dashboard and moderation
-
-- Administrator Dashboard contains live database charts (30-second refresh); Platform management contains reports, users, listing status controls and staff invitations. Date range affects only the daily new-listing chart. Other charts show current/all-time totals as labelled.
-- Homes rented out counts current `filled` listings, not demo payments or shortlisted rooms. Matched people counts distinct users in mutually agreed pairs where both participants are active flatmate students. Report outcomes count reports with recorded `close_listing` or `deactivate_user` actions; these are report counts, not unique targets. Reactivation/relisting does not erase the historical report decision.
-- All listings → AI safety check calls the same Gemini-first screening service used by students, using server-loaded listing data. Green is lower risk, amber requires review, red is high risk, and grey is unchecked/loading/failed. Scores 34–66 are amber and 67–100 red; any unsafe lower score is also amber. Results are advisory, include provider/fallback and timestamp, and do not change listing status. Checks are sequential and subject to shared AI limits; a failed check is never labelled safe.
-- Dashboard badges count unread notifications, separately from Enquiries' unread messages. Clicking an activity marks it read and opens the specific conversation, report, listing detail or advertiser listing card. Deleted targets show retained information instead of an invalid destination.
-- Run `npm run migrate` before startup to add `report.resolution_action` through `database/moderation-upgrade.sql` without reclassifying older reviews.
-
-### Mutual matches, payment records and search
-
-- Run `npm run migrate` in `backend` before using these features; it also applies `database/outcomes-upgrade.sql`.
-- In flatmate Enquiries, each participant controls only their own agreement button. Both choices initially default to Not agreed. Both agreeing creates a mutual match; either withdrawing removes it from both Matched flatmates pages. The server serializes concurrent updates, and only the two participants can change their choices. This is mutual consent, not the AI compatibility score or a tenancy agreement. Multiple mutual pairs are allowed. A matched partner can still open a hidden profile; inactive accounts are not displayed.
-- Housing students have a Successful payments page containing only their own successful demonstration payments, including unavailable listings. If a listing is later deleted, its saved payment snapshot remains visible. This is not a real payment provider, receipt or tenancy contract.
-- Both search pages separate the smart-search text from standard filters. Smart search uses its own text, not the previous standard form values. The listing Area dropdown follows City and contains suburbs currently represented by available listings in that city; matching is case-insensitive and exact. Changing city clears area.
-- Listing smart search sends the current query to Gemini for structured interpretation, applies deterministic filters in SQL, and then asks Gemini to compare up to 30 remaining public listings with the original request. Gemini results include a score, matches, conflicts and missing information. When Gemini is unavailable, a deliberately simple local parser extracts common rents, cities, room types, transport and lifestyle terms, then ranks candidates by keyword overlap. Local mode is labelled clearly and cannot understand every synonym or contradiction.
-- Flatmate smart search sends only the current query to Gemini to extract location, maximum budget, study habits, lifestyle and move-in date boundaries. The server validates and applies these filters, then uses the existing compatibility ranking. If Gemini interpretation fails, the local parser recognises common English terms and explicit YYYY-MM-DD dates. Saved people and search history are not used.
-- Report-target pages reuse the ordinary listing/profile detail layouts but show administrator review information instead of student save, enquiry and payment actions.
-
-### Community update: migration and behaviour
-
-Before running this version, run `npm run migrate` from `backend`. New installations must first run `database/schema.sql`, then the migration. The migration now also applies `database/community-upgrade.sql`: it preserves existing records, backfills managed transport/facility choices and adds report evidence and notification snapshots. Back up the database before upgrading a shared deployment.
-
-- Saving a listing subscribes that user to changes in weekly rent, bond, available date and status. Updates and notifications commit together. Deletion sends a final notification with the old title, rent and date; the original listing is no longer accessible. Unchanged values do not create another notification. Existing flatmate message notifications are unchanged.
-- A new listing/user/message report notifies active administrators. Upholding a listing report takes the listing down (Closed); upholding a user/chat report deactivates the reported account. The target change, report decision, saver updates and reporter notification commit together or roll back. Dismiss leaves the target unchanged. Reprocessing returns 409. Administrators cannot deactivate themselves. Deleted targets cannot be actioned; dismiss with an explanation instead. Legacy review-only records are not counted as upheld actions.
-- Report a profile from its detail page or a received message from a flatmate conversation. The server checks conversation membership and records the selected message, sender and timestamp itself. Evidence notes and explanations go to administrators, not Gemini. Deleting a target preserves its report snapshot; this is not an indefinite-retention or legal-compliance policy.
-- Administrators manage room types, transport, facilities/utilities, listing lifestyle options and flatmate lifestyle tags from Platform management. Disabled options disappear from new forms and searches while remaining visible on existing records. Renaming an option updates the matching stored listing or profile values. Existing free-text transport, utility and lifestyle data remains searchable for backward compatibility. Cities/towns use the fixed list in `shared/nzCities.json`; suburbs follow the selected city. Existing legacy locations remain visible when editing.
-- Listing search (normal and smart): every selected transport/facility option must occur in the corresponding listing field; facility entries marked false do not match. Every selected lifestyle option must match the managed lifestyle tags, with description and house rules retained as a legacy fallback. Matching ignores case and treats wildcard characters literally. The city dropdown matches the city field, not the suburb. These filters do not verify actual amenities or behaviour. Available-by is inclusive. Explicit filters are enforced in SQL, not only in the browser.
-- Administrators can open a reported user or listing in a read-only administrator detail view, including inactive/hidden targets. Deleted targets return a clear message and retain report snapshots. These endpoints remain administrator-only and do not expose passwords.
-- Listing enquiry conversations and the inbox refresh every five seconds while the tab is visible and refresh when the window regains focus. Switching conversations unmounts the old chat; stale message responses are ignored. Scrolling back through messages does not force the reader to the bottom on each refresh. This is polling, not a WebSocket guarantee of instant delivery.
-- Flatmate search: study routine is a case-insensitive substring; every comma-separated lifestyle tag must match a full tag, case-insensitively. Move-in from/to dates are inclusive and exclude undated profiles when a boundary is supplied. A maximum-budget filter compares the candidate's minimum budget, not their maximum. Inverted date ranges return 400.
-
-### AI data, fallback and limitations
-
-The five feature implementations live in `backend/src/services`:
-
-| Owner | Feature file | Responsibility |
+| Member | Student ID | Main responsibilities |
 | --- | --- | --- |
-| Ying Jin | `aiSmartSearch.js` | Gemini search interpretation and semantic comparison of candidate listings. |
-| Xiangxiao Li | `aiListingSummary.js` | Gemini summaries, date formatting and local summaries. |
-| Xinrui Gao | `aiSafetySupport.js` | Gemini safety assessment and the original local safety floor. |
-| Xinze Gao | `aiListingRecommendation.js` | Gemini listing ranking and local listing scores. |
-| Pengrui Su | `aiFlatmateRecommendation.js` | Gemini flatmate ranking, shared cache and local compatibility scores. |
+| **Pengrui Su** | 24009388 | Project background and objectives; registration and login; standard flatmate search and saved profiles; flatmate conversations and mutual agreement; AI flatmate recommendations; software testing. |
+| **Xinze Gao** | 24009030 | Requirements analysis; system architecture; user profiles; saved listings; report, user and category management; AI listing recommendations. |
+| **Ying Jin** | 24009209 | Home page; room search; notifications; AI smart search; shared AI client and error handling; software quality evaluation. |
+| **Xiangxiao Li** | 24009017 | Listing creation and management; housing enquiries; demonstration payments; AI listing summaries; user guidance and deployment. |
+| **Xinrui Gao** | 24009024 | Database design; dashboards and administrator statistics; AI safety support; development iterations and problems; conclusion and future work. |
 
-`geminiClient.js` is shared request infrastructure (model configuration, quota, retry and timeout), not a sixth feature. `aiService.js` remains a small compatibility export so existing routes and scripts keep the same imports. Smart search and the other AI features retain their documented local fallbacks. Safety screening still combines local risk signals with Gemini results rather than discarding the local safety floor after a successful call.
 
-| Function | Fields sent to Gemini |
-| --- | --- |
-| Smart search | Current natural-language search text (up to 1,000 characters); for listing search, up to 30 candidate listings with title, rent, city/suburb, room type, availability, bounded description/rules, transport, facilities and lifestyle tags. Contact details and street addresses are excluded. |
-| Listing recommendation | Profile maximum budget, preferred location and lifestyle tags; candidate rent, area, room type, description (500 characters) and rules (300 characters). No favourite-listing context. |
-| Listing summary | Listing title, description, weekly rent, suburb/city, availability date, room type, utilities and transport. |
-| Safety screening | Title, description, suburb/city, weekly rent and bond. Local safety checks also apply to Gemini results. |
-| Flatmate recommendation | Both sides' location, budget range, study habits and lifestyle tags; candidates are indexed rather than named. |
+## 4. What we learned
 
-Gemini listing and flatmate recommendation do **not** use saved listings or saved people as ranking inputs. The listing recommendation fallback also ignores saved-listing context. Saving remains a shortlist feature, not a recommendation signal. There is **no stored search-history feature**. Explicit identity/contact fields, passwords, payment details and private chat/report evidence are not included in these AI payloads. Free-text listing/profile/search fields may still contain personal information entered by users; users should avoid placing private information there.
+### Pengrui Su
 
-Calls use bounded input, deadlines, application rate/quota controls and validated outputs. Missing credentials, provider errors/timeouts or unusable smart-search results trigger the labelled local parser and keyword ranking, so quota exhaustion does not disable the feature. A configured API key does not guarantee provider availability. Local keyword scores are basic text-overlap hints and may miss negation or synonyms; all scores are preference hints, not probabilities, tenancy decisions or safety guarantees. Summaries and screening need human verification. Rate/quota accounting is in-process and is not a shared multi-server billing cap.
+Taking charge of the account and flatmate-related features gave me a great chance to put database knowledge into practice. For example, a composite UNIQUE constraint prevents duplicate saves and duplicate conversations. A CHECKconstraint stops users from saving themselves, and CASE WHEN ensures users can only update their own agreement status. Besides, database transactions guarantee that account creation and invite code consumption stay consistent.In addition, working on AI recommendations and testing practices helped me grasp the general workflows and logic behind calling external AI services and running automated tests. 
 
-Both student types now start at Dashboard. Housing students can browse all available rooms without entering search filters. Flatmate students can upload a JPEG/PNG/WebP portrait (below 1 MB) and an introduction in My profile, open profile cards, save people, and start private enquiries. Conversations and unread messages are stored in PostgreSQL and visible only to their two participants. Existing conversations remain available if a profile becomes hidden.
+The chat feature really helped me understand race conditions. When using async/await, asynchronous requests might return out of order. An earlier request could still finish later and end up incorrectly updating another conversation. Therefore, it’s necessary to check whether a request is still valid and to clean up old polling tasks when leaving the page. This gave me a much more concrete understanding of React Effects and Promises.
 
-Run `npm run migrate` in backend before starting the updated application. This adds profile fields and flatmate conversation/message tables without deleting existing records. Accounts without a portrait show a labelled placeholder.
+### Xinze Gao
 
-Run `npm test` in backend for unit tests. The opt-in database integration test requires the migrated database: in PowerShell set `$env:RUN_DATABASE_TESTS='1'`, then run `npm test`. It creates temporary test accounts and removes their records in cleanup.
+Working on these features changed how I judge whether a function is complete. I used to focus on whether the page showed the expected result. I now also check what remains in the database after a user changes their mind, whether a failed update leaves an incorrect notification, and what happens when two administrators review the same report. The profile forms showed me that updating information sometimes means removing an earlier value. Selecting Flexible must clear the saved move-in date, otherwise matching still uses a preference the student has withdrawn. Saved-room alerts helped me understand why related writes belong in one transaction: the listing change and its notification must both succeed, or neither should be saved. Moderation made the difference between locking and checking clearer. A row lock makes the second administrator wait, but the status check is what stops their decision from replacing an existing review. AI recommendations also taught me to look beyond whether an API call succeeds. A response can arrive but still contain an invalid candidate index or score. Checking each entry and retaining its local result lets the application handle a partly usable response.
+
+### Ying Jin
+
+Working on the home page, room search, notifications and AI smart search helped me understand how the frontend, backend and database work together. For standard search, I learned how React form values become URL query parameters, how Express checks them, and how PostgreSQL applies them to the listing query. I also realised that user experience is more important than page layout. For example, search conditions should remain when a student opens a listing and returns to the results. And the AI work was more challenging. Gemini could return missing or invalid message, and API requests could fail or reach a rate limit. This taught me that model output cannot be trusted directly, and the backend must validate the result and keep control of the SQL query. Building notifications also helped me understand how the same service can support different roles while keeping each user’s messages separate. In a future project, I would test failed API calls and complete user journeys earlier instead of waiting until the final testing stage.
+
+### Xiangxiao Li
+
+I learned that publishing a room takes more than filling in a form. The server also needs to check that the listing details are valid and that the advertiser has permission to change them. In the chat feature, I found that an older request can finish after the user has opened another conversation. The page needs to ignore that response, or it could show messages from the wrong conversation. I also learned that the server must check the room’s availability again before saving a demo payment, because its status may have changed during checkout. I also worked on the AI listing summary feature, including how it sends listing details to Gemini, handles the returned summary and uses a local summary when Gemini cannot provide a usable result. Writing the setup instructions helped me understand how to start the frontend and backend and connect them to the database. Overall, these tasks helped me see how the features I worked on fit into the website and depend on each other.
+
+### Xinrui Gao
+
+This project shifted my focus from just implementing features to ensuring system robustness.During the database design, I realized that deletion rules must depend on business needs. To prevent the loss of financial history, I implemented a JSONB snapshot for payments, so the transaction record remains complete even if the listing is removed.Building the admin dashboard taught me the importance of strict data definitions. Visualizing data is straightforward, but if the backend SQL counts mock test payments as actual outcomes, the dashboard misleads administrators. I learned to verify the query logic before relying on the charts. Managing three distinct user layouts within one React component also strengthened my frontend architecture skills.For the AI safety feature, I found that external models cannot be fully trusted. To handle potential AI failures or missed detections, I combined the AI output with local rule-based checks. Taking the highest risk score between them ensures the safety feature remains reliable. 
+
+Ultimately, I learned that keeping a system reliable is about having a backup plan for every risk. Whether it was preserving deleted records or handling AI failures, those fallbacks are what truly made the platform stable.
+
+
+## Repository
+
+GitHub: [JinYing24009209/FlatMate-Finder](https://github.com/JinYing24009209/FlatMate-Finder)

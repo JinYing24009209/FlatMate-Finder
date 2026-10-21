@@ -22,7 +22,7 @@ services:
       - key: GEMINI_EMBEDDING_MODEL
         value: gemini-embedding-001
       - key: GEMINI_TEXT_MODEL
-        value: gemini-3.6-flash
+        value: gemini-3.6-flash-lite
   - type: web
     name: flatmate-finder-web
     runtime: static
