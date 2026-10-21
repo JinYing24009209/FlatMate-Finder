@@ -1,4 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// PostgreSQL DATE values have no time zone. Keep them as YYYY-MM-DD strings
+// so JSON serialization cannot shift the calendar day.
+types.setTypeParser(types.builtins.DATE, (value) => value);
 const isProduction = process.env.NODE_ENV === 'production';
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
