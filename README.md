@@ -75,32 +75,36 @@ npm install
 
 ### 2.2 Create the environment file
 
-The repository does not include `backend/.env` because it contains database credentials, API keys and authentication secrets. A safe configuration template is provided as `backend/.env.example`.
+The repository does not include `backend/.env` because it contains database credentials, API keys and authentication secrets. 
 
-In PowerShell, create the local environment file:
+Create a new file named `.env` in the `backend` folder.
+
+In PowerShell, you can create it with:
 
 ```powershell
 cd backend
-Copy-Item .env.example .env
+New-Item -Path .env -ItemType File
 ```
 
-Alternatively, copy `backend/.env.example` manually and rename the copied file to `.env`.
-
-Open `backend/.env` and replace the placeholder values with the credentials supplied separately for assessment:
+Open `backend/.env`, copy the configuration below into it:
 
 ```env
 PORT=5000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 
-DATABASE_URL=your_neon_postgresql_connection_string
+DB_HOST=ep-holy-union-a7f69vi6-pooler.ap-southeast-2.aws.neon.tech
+DB_PORT=5432
+DB_NAME=neondb
+DB_USER=neondb_owner
+DB_PASSWORD=npg_IW5NYbufQ7Ao
 
 AI_MODE=gemini
-GEMINI_API_KEY=your_gemini_api_key
+GEMINI_API_KEY=AQ.Ab8RN6ISbMzAeW6ycKGEgoSocHtFaufqMl8EeQZwccuV5xsrGA
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_TEXT_MODEL=gemini-3.5-flash-lite
 
-JWT_SECRET=your_long_random_secret
+JWT_SECRET=FlatMateFinder_dev_2026_change_this_to_a_long_random_value
 JWT_EXPIRES_IN=7d
 ```
 
@@ -126,8 +130,7 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173`. During local development, Vite forwards `/api` requests to `http://localhost:5000`.
-
+With the development server running in your terminal, open http://localhost:5173 in your browser. Vite forwards `/api` requests to `http://localhost:5000`.
 
 ## 3. Team responsibilities
 
